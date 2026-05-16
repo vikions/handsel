@@ -798,6 +798,13 @@ textarea:focus {
   line-height: 1.5;
 }
 
+.review-note {
+  margin: 10px 0 12px;
+  color: #9aa79f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .recommendation-approve {
   border-color: rgba(100, 198, 168, 0.34);
   background: rgba(100, 198, 168, 0.08);
@@ -837,6 +844,14 @@ textarea:focus {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-top: 22px;
+}
+
+.receipt-summary .section-heading {
+  margin-bottom: 0;
+}
+
+.compact-grid {
+  margin-top: 14px;
 }
 
 .skeleton {

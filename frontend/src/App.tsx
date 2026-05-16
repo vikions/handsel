@@ -7,7 +7,6 @@ import {
   Copy,
   FileText,
   Handshake,
-  LinkSimple,
   Plus,
   Receipt,
   Scales,
@@ -95,6 +94,8 @@ type HandselWriteFunction =
   | "resolveDispute"
   | "refundExpired"
   | "cancelUnaccepted";
+
+type WriteRequest = Parameters<ReturnType<typeof useWriteContract>["writeContractAsync"]>[0];
 
 export function App() {
   const route = useHashRoute();
@@ -529,6 +530,7 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
   const isArbiter = connected === agreement.arbiter.toLowerCase();
   const isParty = isClient || isBeneficiary;
   const expired = Number(agreement.deadline) * 1000 < Date.now();
+  const isSettled = agreement.status === 3 || agreement.status === 5;
   const timeline = buildTimeline(agreement, validation);
 
   async function callAgreement(label: string, functionName: HandselWriteFunction, args: readonly unknown[]) {
@@ -537,7 +539,7 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
       abi: handselAbi,
       functionName,
       args,
-    });
+    } as WriteRequest);
   }
 
   async function submitProof() {
@@ -611,6 +613,8 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
             ))}
           </div>
         </section>
+
+        {isSettled ? <SettlementReceiptSummary agreement={agreement} validation={validation} /> : null}
       </section>
 
       <aside className="actions-panel">
@@ -648,6 +652,7 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
                 <p>{validation?.summary ?? "Run local MVP review before final client approval."}</p>
               </div>
             </div>
+            <p className="review-note">AI-assisted review is a local MVP recommendation. Client approval controls release.</p>
             {isClient ? (
               <>
                 <ActionButton icon={<Brain size={18} weight="duotone" />} disabled={isPending} onClick={runReview}>
@@ -700,13 +705,58 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
           </div>
         ) : null}
 
-        <a className="receipt-link" href={`#/receipts/${agreement.id.toString()}`}>
-          <Receipt size={18} weight="duotone" />
-          Public receipt
-        </a>
+        {isSettled ? (
+          <a className="receipt-link" href={`#/receipts/${agreement.id.toString()}`}>
+            <Receipt size={18} weight="duotone" />
+            Public receipt
+          </a>
+        ) : null}
         <TxStatus state={txState} />
       </aside>
     </div>
+  );
+}
+
+function SettlementReceiptSummary({
+  agreement,
+  validation,
+}: {
+  agreement: AgreementRecord;
+  validation: ValidationResult | null;
+}) {
+  const receipt = buildReceipt(
+    {
+      id: agreement.id,
+      client: agreement.client,
+      beneficiary: agreement.beneficiary,
+      arbiter: agreement.arbiter,
+      amountLabel: formatUsdc(agreement.amount),
+      title: agreement.title,
+      criteriaURI: agreement.criteriaURI,
+      proofURI: agreement.proofURI,
+      statusLabel: statusLabels[agreement.status] ?? "Unknown",
+    },
+    validation,
+  );
+
+  return (
+    <section className="metadata-panel receipt-summary">
+      <div className="section-heading compact">
+        <div>
+          <span className="eyebrow">Receipt</span>
+          <h2>{receipt.heading}</h2>
+        </div>
+        <a className="text-link" href={`#/receipts/${agreement.id.toString()}`}>
+          Open receipt
+          <ArrowRight size={16} weight="bold" />
+        </a>
+      </div>
+      <div className="receipt-grid compact-grid">
+        <DetailItem label="Status" value={receipt.status} />
+        <DetailItem label="Amount" value={formatUsdc(agreement.amount)} />
+        <DetailItem label="AI recommendation" value={validation?.recommendation.replace("_", " ") ?? "Not reviewed"} />
+      </div>
+    </section>
   );
 }
 
@@ -890,7 +940,7 @@ function useTxRunner() {
   const { writeContractAsync, isPending } = useWriteContract();
   const [txState, setTxState] = useState<TxState>();
 
-  async function run(label: string, request: Parameters<typeof writeContractAsync>[0]) {
+  async function run(label: string, request: WriteRequest) {
     try {
       setTxState({ label });
       const hash = await writeContractAsync(request);

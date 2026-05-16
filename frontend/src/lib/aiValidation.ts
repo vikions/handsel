@@ -17,7 +17,17 @@ const STORAGE_PREFIX = "handsel:validation:";
 
 export function validateProof({ criteria, proof, title }: ValidationInput): ValidationResult {
   const normalizedProof = proof.trim();
+  const normalizedCriteria = criteria.trim();
   const reviewedAt = new Date().toISOString();
+
+  if (!normalizedCriteria) {
+    return {
+      recommendation: "needs_review",
+      reviewedAt,
+      summary: "Acceptance criteria are missing, so the proof cannot be compared reliably.",
+      reasons: ["Add criteria before relying on automated review signals."],
+    };
+  }
 
   if (normalizedProof.length < 10) {
     return {

@@ -32,7 +32,7 @@ The Circle sample guides the Phase 2 architecture direction: server-side API rou
 - `frontend/src/lib/timeline.ts`: timeline view-model helper.
 - `frontend/src/lib/receipts.ts`: public receipt view-model helper.
 
-Phase 1 intentionally keeps Vite and direct wallet transactions so the MVP remains working. Supabase, Circle, and OpenAI are documented as Phase 2 server-side integrations and are not required for local build.
+Phase 1 intentionally keeps Vite and direct wallet transactions so the MVP remains working. Arc RPC URLs, private keys, Supabase, Circle, and OpenAI are not required for Phase 1 code implementation or local compile/build verification.
 
 ## Smart Contract Flow
 
@@ -60,7 +60,18 @@ The contract has no admin withdrawal function, no owner custody path, and no upg
 
 ## Environment Variables
 
-Minimum Phase 1 variables:
+Phase 1 frontend placeholders:
+
+```bash
+VITE_ARC_TESTNET_RPC_URL=
+VITE_ARC_TESTNET_CHAIN_ID=
+VITE_USDC_ADDRESS=
+VITE_HANDSEL_CONTRACT_ADDRESS=
+```
+
+These can stay blank until a local or testnet deployment is available. The app still compiles without real credentials.
+
+Future Phase 3 deployment variables:
 
 ```bash
 ARC_TESTNET_RPC_URL=
@@ -68,11 +79,6 @@ ARC_TESTNET_CHAIN_ID=
 PRIVATE_KEY=
 USDC_ADDRESS=
 HANDSEL_CONTRACT_ADDRESS=
-
-VITE_ARC_TESTNET_RPC_URL=
-VITE_ARC_TESTNET_CHAIN_ID=
-VITE_USDC_ADDRESS=
-VITE_HANDSEL_CONTRACT_ADDRESS=
 ```
 
 Future Phase 2 variables:
@@ -119,38 +125,15 @@ Build all packages:
 pnpm build
 ```
 
-Run the frontend:
-
-```bash
-pnpm dev
-```
-
-## Deploy to Arc Testnet
-
-1. Set `ARC_TESTNET_RPC_URL`, `ARC_TESTNET_CHAIN_ID`, `PRIVATE_KEY`, and the official Arc testnet `USDC_ADDRESS`.
-2. Compile:
-
-```bash
-pnpm --filter @handsel/contracts compile
-```
-
-3. Deploy:
-
-```bash
-pnpm --filter @handsel/contracts deploy:arc
-```
-
-4. Set `VITE_HANDSEL_CONTRACT_ADDRESS` and `NEXT_PUBLIC_HANDSEL_CONTRACT_ADDRESS` to the deployed address.
-
 ## Grant Alignment
 
 Handsel demonstrates real-world economic activity on Arc testnet: structured service agreements, USDC commitment, proof submission, AI-assisted review, human approval, fallback dispute/refund flow, and public settlement receipts.
 
 ## Roadmap
 
-- Phase 1: Working testnet MVP with direct wallet calls, HandselAgreement, local proof review, and receipt UI.
-- Phase 2: Next.js API routes, Supabase persistence, Circle Developer Controlled Wallets, Circle webhooks, and OpenAI proof validation.
-- Phase 3: SDK/API for marketplaces and AI-agent task settlement.
+- Phase 1: Code-complete testnet MVP scaffold with Hardhat contracts, Vite frontend, local proof review, and receipt UI.
+- Phase 2: Next.js API routes, Supabase persistence, Circle Developer Controlled Wallets, Circle webhooks, OpenAI proof validation, and persistent public receipts.
+- Phase 3: Arc testnet deployment, real transaction demo, and SDK/API paths for marketplaces and AI-agent task settlement.
 
 ## Security and Compliance Notes
 

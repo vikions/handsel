@@ -66,6 +66,7 @@ contract HandselAgreement is ReentrancyGuard {
     error InvalidRefundStatus(Status actual);
     error DeadlineNotReached();
     error InvalidSplit();
+    error EmptyProofURI();
 
     event AgreementCreated(
         uint256 indexed agreementId,
@@ -185,6 +186,7 @@ contract HandselAgreement is ReentrancyGuard {
         Agreement storage agreement = _agreementAt(agreementId);
         if (msg.sender != agreement.beneficiary) revert Unauthorized();
         if (agreement.status != Status.Active) revert InvalidStatus(Status.Active, agreement.status);
+        if (bytes(proofURI).length == 0) revert EmptyProofURI();
 
         agreement.status = Status.Submitted;
         agreement.proofURI = proofURI;

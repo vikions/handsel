@@ -136,6 +136,16 @@ describe("HandselAgreement", function () {
     );
   });
 
+  it("reverts when proofURI is empty", async function () {
+    const context = await loadFixture(deployFixture);
+    const { agreementId } = await createAndAccept(context);
+
+    await expect(context.handsel.connect(context.beneficiary).submitProof(agreementId, "")).to.be.revertedWithCustomError(
+      context.handsel,
+      "EmptyProofURI",
+    );
+  });
+
   it("allows the client to approve proof and release USDC", async function () {
     const context = await loadFixture(deployFixture);
     const { agreementId } = await createAcceptAndSubmit(context);
@@ -161,6 +171,16 @@ describe("HandselAgreement", function () {
     await expect(context.handsel.connect(context.other).approveProof(agreementId)).to.be.revertedWithCustomError(
       context.handsel,
       "Unauthorized",
+    );
+  });
+
+  it("reverts when the client approves before proof submission", async function () {
+    const context = await loadFixture(deployFixture);
+    const { agreementId } = await createAndAccept(context);
+
+    await expect(context.handsel.connect(context.client).approveProof(agreementId)).to.be.revertedWithCustomError(
+      context.handsel,
+      "InvalidStatus",
     );
   });
 
@@ -195,14 +215,23 @@ describe("HandselAgreement", function () {
 
   it("allows client or beneficiary to open a dispute from Submitted", async function () {
     const context = await loadFixture(deployFixture);
-    const { agreementId } = await createAcceptAndSubmit(context);
+    const first = await createAcceptAndSubmit(context);
 
-    await expect(context.handsel.connect(context.client).openDispute(agreementId))
+    await expect(context.handsel.connect(context.client).openDispute(first.agreementId))
       .to.emit(context.handsel, "AgreementDisputed")
-      .withArgs(agreementId, context.client.address);
+      .withArgs(first.agreementId, context.client.address);
 
-    const stored = await context.handsel.getAgreement(agreementId);
-    expect(stored.status).to.equal(4n);
+    const firstStored = await context.handsel.getAgreement(first.agreementId);
+    expect(firstStored.status).to.equal(4n);
+
+    const second = await createAcceptAndSubmit(context);
+
+    await expect(context.handsel.connect(context.beneficiary).openDispute(second.agreementId))
+      .to.emit(context.handsel, "AgreementDisputed")
+      .withArgs(second.agreementId, context.beneficiary.address);
+
+    const secondStored = await context.handsel.getAgreement(second.agreementId);
+    expect(secondStored.status).to.equal(4n);
   });
 
   it("allows the arbiter to split disputed funds", async function () {
