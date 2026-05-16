@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
+  Brain,
   CheckCircle,
   ClockCountdown,
   Copy,
+  FileText,
   Handshake,
+  LinkSimple,
   Plus,
+  Receipt,
   Scales,
   ShieldCheck,
+  UploadSimple,
   Wallet,
   WarningCircle,
   XCircle,
@@ -22,40 +27,54 @@ import {
   useReadContracts,
   useWriteContract,
 } from "wagmi";
+import { formatUnits, isAddress, parseUnits, zeroAddress, type Address, type Hash } from "viem";
+import { handselAddress, configIssues, contractsConfigured, usdcAddress, usdcDecimals } from "./lib/config";
+import { handselAbi, erc20Abi } from "./lib/abi";
 import {
-  formatUnits,
-  isAddress,
-  parseUnits,
-  zeroAddress,
-  type Address,
-  type Hash,
-} from "viem";
-import { arcEscrowAddress, configIssues, contractsConfigured, usdcAddress, usdcDecimals } from "./lib/config";
-import { arcEscrowAbi, erc20Abi } from "./lib/abi";
+  loadValidationResult,
+  saveValidationResult,
+  validateProof,
+  type ValidationResult,
+} from "./lib/aiValidation";
+import { buildTimeline } from "./lib/timeline";
+import { buildReceipt } from "./lib/receipts";
 
-const statusLabels = ["Created", "Active", "Completed", "Disputed", "Resolved", "Refunded", "Cancelled"] as const;
+const statusLabels = [
+  "Created",
+  "Active",
+  "Submitted",
+  "Completed",
+  "Disputed",
+  "Resolved",
+  "Refunded",
+  "Cancelled",
+] as const;
 
 type Route =
   | { page: "dashboard" }
   | { page: "create" }
-  | { page: "detail"; escrowId: bigint };
+  | { page: "detail"; agreementId: bigint }
+  | { page: "receipt"; agreementId: bigint };
 
-type EscrowRecord = {
+type AgreementRecord = {
   id: bigint;
   client: Address;
   beneficiary: Address;
   arbiter: Address;
   amount: bigint;
   deadline: bigint;
+  title: string;
+  criteriaURI: string;
   metadataURI: string;
+  proofURI: string;
   status: number;
   createdAt: bigint;
   acceptedAt: bigint;
+  submittedAt: bigint;
   completedAt: bigint;
 };
 
 type ReadRow = {
-  status?: string;
   result?: unknown;
   error?: Error;
 };
@@ -66,6 +85,16 @@ type TxState = {
   error?: string;
   success?: string;
 };
+
+type HandselWriteFunction =
+  | "acceptAgreement"
+  | "submitProof"
+  | "approveProof"
+  | "releaseAgreement"
+  | "openDispute"
+  | "resolveDispute"
+  | "refundExpired"
+  | "cancelUnaccepted";
 
 export function App() {
   const route = useHashRoute();
@@ -78,8 +107,9 @@ export function App() {
       <main className="page-frame">
         <ConfigWarning />
         {route.page === "dashboard" ? <Dashboard /> : null}
-        {route.page === "create" ? <CreateEscrowPage /> : null}
-        {route.page === "detail" ? <EscrowDetailPage escrowId={route.escrowId} /> : null}
+        {route.page === "create" ? <CreateAgreementPage /> : null}
+        {route.page === "detail" ? <AgreementDetailPage agreementId={route.agreementId} /> : null}
+        {route.page === "receipt" ? <ReceiptPage agreementId={route.agreementId} /> : null}
       </main>
     </div>
   );
@@ -95,17 +125,23 @@ function useHashRoute(): Route {
   }, []);
 
   const normalized = hash.replace(/^#/, "") || "/";
-  if (normalized === "/create") {
-    return { page: "create" };
+  if (normalized === "/create") return { page: "create" };
+  if (normalized.startsWith("/agreements/")) {
+    return routeWithId(normalized.replace("/agreements/", ""), "detail");
   }
-  if (normalized.startsWith("/escrow/")) {
-    try {
-      return { page: "detail", escrowId: BigInt(normalized.replace("/escrow/", "")) };
-    } catch {
-      return { page: "dashboard" };
-    }
+  if (normalized.startsWith("/receipts/")) {
+    return routeWithId(normalized.replace("/receipts/", ""), "receipt");
   }
   return { page: "dashboard" };
+}
+
+function routeWithId(value: string, page: "detail" | "receipt"): Route {
+  try {
+    const agreementId = BigInt(value);
+    return page === "detail" ? { page: "detail", agreementId } : { page: "receipt", agreementId };
+  } catch {
+    return { page: "dashboard" };
+  }
 }
 
 function Header({ route }: { route: Route }) {
@@ -115,7 +151,7 @@ function Header({ route }: { route: Route }) {
         <span className="brand-mark">
           <ShieldCheck size={20} weight="duotone" />
         </span>
-        <span>ArcEscrow</span>
+        <span>Handsel</span>
       </a>
       <nav className="nav-links" aria-label="Primary navigation">
         <a className={route.page === "dashboard" ? "active" : ""} href="#/">
@@ -145,9 +181,7 @@ function ConnectButton() {
           disconnect();
           return;
         }
-        if (connector) {
-          connect({ connector });
-        }
+        if (connector) connect({ connector });
       }}
     >
       <Wallet size={18} weight="duotone" />
@@ -159,23 +193,21 @@ function ConnectButton() {
 function TestnetBanner() {
   return (
     <div className="testnet-banner">
-      <span>Arc testnet MVP</span>
-      <span>USDC escrow deposits and Arc gas fees are shown in USDC terms where the network exposes them.</span>
+      <span>Handsel testnet MVP</span>
+      <span>Proof-based settlement for real work.</span>
     </div>
   );
 }
 
 function ConfigWarning() {
-  if (contractsConfigured) {
-    return null;
-  }
+  if (contractsConfigured) return null;
 
   return (
     <section className="notice-panel">
       <WarningCircle size={20} weight="duotone" />
       <div>
         <strong>Configuration needed</strong>
-        <p>Set the Arc testnet RPC, chain id, ArcEscrow address, and USDC token address before using live reads or writes.</p>
+        <p>Set the Arc testnet RPC, chain id, Handsel contract address, and USDC token address before live reads or writes.</p>
         <ul>
           {configIssues.map((issue) => (
             <li key={issue}>{issue}</li>
@@ -189,15 +221,15 @@ function ConfigWarning() {
 function Dashboard() {
   const stats = useReadContracts({
     contracts: [
-      { address: arcEscrowAddress, abi: arcEscrowAbi, functionName: "getEscrowCount" },
-      { address: arcEscrowAddress, abi: arcEscrowAbi, functionName: "totalVolume" },
-      { address: arcEscrowAddress, abi: arcEscrowAbi, functionName: "completedEscrows" },
-      { address: arcEscrowAddress, abi: arcEscrowAbi, functionName: "disputedEscrows" },
+      { address: handselAddress, abi: handselAbi, functionName: "getAgreementCount" },
+      { address: handselAddress, abi: handselAbi, functionName: "totalVolume" },
+      { address: handselAddress, abi: handselAbi, functionName: "completedAgreements" },
+      { address: handselAddress, abi: handselAbi, functionName: "disputedAgreements" },
     ],
     query: { enabled: contractsConfigured },
   });
 
-  const totalEscrows = readBigInt(stats.data, 0);
+  const totalAgreements = readBigInt(stats.data, 0);
   const totalVolume = readBigInt(stats.data, 1);
   const completed = readBigInt(stats.data, 2);
   const disputed = readBigInt(stats.data, 3);
@@ -205,25 +237,26 @@ function Dashboard() {
   return (
     <div className="dashboard-grid">
       <section className="hero-panel">
-        <div className="eyebrow">Programmable payment guarantee primitive</div>
-        <h1>Lock USDC into a programmable escrow on Arc testnet.</h1>
-        <p>
-          Beneficiary sees guaranteed funds before starting work. Release or resolve with transparent onchain settlement.
+        <div className="eyebrow">Programmable payment guarantee layer</div>
+        <h1>USDC agreements that release when work is proven.</h1>
+        <p>Define the work. Hold the payment. Submit proof. Release on approval.</p>
+        <p className="muted-copy">
+          AI-assisted review helps evaluate proof, but the client controls final approval.
         </p>
         <div className="hero-actions">
           <a className="primary-link" href="#/create">
             <Plus size={18} weight="bold" />
-            Create escrow
+            Create agreement
           </a>
-          <a className="secondary-link" href="#user-escrows">
-            View activity
+          <a className="secondary-link" href="#user-agreements">
+            View agreements
             <ArrowRight size={18} weight="bold" />
           </a>
         </div>
       </section>
 
       <section className="stats-panel" aria-label="Protocol stats">
-        <Metric label="Total escrows" value={totalEscrows.toString()} loading={stats.isLoading} />
+        <Metric label="Total agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
         <Metric label="Total volume" value={formatUsdc(totalVolume)} loading={stats.isLoading} />
         <Metric label="Completed" value={completed.toString()} loading={stats.isLoading} />
         <Metric label="Disputed" value={disputed.toString()} loading={stats.isLoading} />
@@ -235,23 +268,23 @@ function Dashboard() {
           <Handshake size={24} weight="duotone" />
         </div>
         <div>
-          <h2>Agent Escrow Demo</h2>
-          <p>AI agents can create, accept, and settle task-based payments using the same escrow primitive.</p>
+          <h2>Agent Task Mode</h2>
+          <p>Built as an independent testnet MVP on Arc. Designed for freelance work, service deals, and future agent tasks.</p>
         </div>
       </section>
 
-      <section className="activity-panel" id="user-escrows">
+      <section className="activity-panel" id="user-agreements">
         <div className="section-heading">
           <div>
             <span className="eyebrow">Wallet activity</span>
-            <h2>Your escrows</h2>
+            <h2>Your agreements</h2>
           </div>
           <a className="text-link" href="#/create">
-            New escrow
+            New agreement
             <ArrowRight size={16} weight="bold" />
           </a>
         </div>
-        <UserEscrows />
+        <UserAgreements />
       </section>
     </div>
   );
@@ -266,67 +299,65 @@ function Metric({ label, value, loading }: { label: string; value: string; loadi
   );
 }
 
-function UserEscrows() {
+function UserAgreements() {
   const { address, isConnected } = useAccount();
 
   const userIdsRead = useReadContract({
-    address: arcEscrowAddress,
-    abi: arcEscrowAbi,
-    functionName: "getUserEscrowIds",
+    address: handselAddress,
+    abi: handselAbi,
+    functionName: "getUserAgreementIds",
     args: [address ?? zeroAddress, 0n, 25n],
     query: { enabled: contractsConfigured && isConnected && Boolean(address) },
   });
 
   const ids = useMemo(() => (Array.isArray(userIdsRead.data) ? userIdsRead.data : []), [userIdsRead.data]);
 
-  const escrowsRead = useReadContracts({
+  const agreementsRead = useReadContracts({
     contracts: ids.map((id) => ({
-      address: arcEscrowAddress,
-      abi: arcEscrowAbi,
-      functionName: "getEscrow",
+      address: handselAddress,
+      abi: handselAbi,
+      functionName: "getAgreement",
       args: [id],
     })),
     query: { enabled: contractsConfigured && ids.length > 0 },
   });
 
-  const escrows = useMemo(
+  const agreements = useMemo(
     () =>
-      (escrowsRead.data ?? [])
-        .map((row, index) => normalizeEscrow((row as ReadRow).result, ids[index]))
-        .filter((escrow): escrow is EscrowRecord => Boolean(escrow)),
-    [escrowsRead.data, ids],
+      (agreementsRead.data ?? [])
+        .map((row, index) => normalizeAgreement((row as ReadRow).result, ids[index]))
+        .filter((agreement): agreement is AgreementRecord => Boolean(agreement)),
+    [agreementsRead.data, ids],
   );
 
   if (!isConnected) {
-    return <EmptyState title="Connect a wallet" body="Your client, beneficiary, and arbiter escrows will appear here." />;
+    return <EmptyState title="Connect a wallet" body="Client, beneficiary, and arbiter agreements will appear here." />;
   }
 
-  if (userIdsRead.isLoading || escrowsRead.isLoading) {
-    return <EscrowListSkeleton />;
+  if (userIdsRead.isLoading || agreementsRead.isLoading) return <AgreementListSkeleton />;
+
+  if (userIdsRead.error || agreementsRead.error) {
+    return <InlineError message={(userIdsRead.error ?? agreementsRead.error)?.message ?? "Unable to load agreements."} />;
   }
 
-  if (userIdsRead.error || escrowsRead.error) {
-    return <InlineError message={(userIdsRead.error ?? escrowsRead.error)?.message ?? "Unable to load escrows."} />;
-  }
-
-  if (escrows.length === 0) {
-    return <EmptyState title="No escrows yet" body="Create a testnet agreement or connect a participant wallet." />;
+  if (agreements.length === 0) {
+    return <EmptyState title="No agreements yet" body="Create a proof-based service agreement or connect a participant wallet." />;
   }
 
   return (
-    <div className="escrow-list">
-      {escrows.map((escrow) => (
-        <a className="escrow-row" href={`#/escrow/${escrow.id.toString()}`} key={escrow.id.toString()}>
+    <div className="agreement-list">
+      {agreements.map((agreement) => (
+        <a className="agreement-row" href={`#/agreements/${agreement.id.toString()}`} key={agreement.id.toString()}>
           <div>
-            <span className={`status-pill status-${statusLabels[escrow.status]?.toLowerCase() ?? "unknown"}`}>
-              {statusLabels[escrow.status] ?? "Unknown"}
+            <span className={`status-pill status-${statusLabels[agreement.status]?.toLowerCase() ?? "unknown"}`}>
+              {statusLabels[agreement.status] ?? "Unknown"}
             </span>
-            <strong>Escrow #{escrow.id.toString()}</strong>
-            <p>{escrow.metadataURI || "No metadata supplied"}</p>
+            <strong>{agreement.title || `Agreement #${agreement.id.toString()}`}</strong>
+            <p>{agreement.criteriaURI || agreement.metadataURI || "No criteria supplied"}</p>
           </div>
           <div className="row-amount">
-            <strong>{formatUsdc(escrow.amount)}</strong>
-            <span>Deadline {formatDate(escrow.deadline)}</span>
+            <strong>{formatUsdc(agreement.amount)}</strong>
+            <span>Deadline {formatDate(agreement.deadline)}</span>
           </div>
         </a>
       ))}
@@ -334,22 +365,24 @@ function UserEscrows() {
   );
 }
 
-function CreateEscrowPage() {
+function CreateAgreementPage() {
   const { address, isConnected } = useAccount();
   const queryClient = useQueryClient();
   const { run, isPending, txState } = useTxRunner();
+  const [title, setTitle] = useState("Landing page implementation");
   const [beneficiary, setBeneficiary] = useState("");
   const [arbiter, setArbiter] = useState("");
   const [amount, setAmount] = useState("100");
   const [deadline, setDeadline] = useState(defaultDeadlineInput);
-  const [metadataURI, setMetadataURI] = useState("ipfs://agreement/service-delivery");
+  const [criteriaURI, setCriteriaURI] = useState("Responsive landing page with deployed URL, source PR, and basic QA notes.");
+  const [metadataURI, setMetadataURI] = useState("Proof-based service agreement for a small digital delivery.");
   const parsedAmount = parseUsdcAmount(amount);
 
   const allowanceRead = useReadContract({
     address: usdcAddress,
     abi: erc20Abi,
     functionName: "allowance",
-    args: [address ?? zeroAddress, arcEscrowAddress],
+    args: [address ?? zeroAddress, handselAddress],
     query: { enabled: contractsConfigured && isConnected && Boolean(address) },
   });
 
@@ -364,7 +397,7 @@ function CreateEscrowPage() {
   const allowance = typeof allowanceRead.data === "bigint" ? allowanceRead.data : 0n;
   const balance = typeof balanceRead.data === "bigint" ? balanceRead.data : 0n;
   const needsApproval = parsedAmount !== null && allowance < parsedAmount;
-  const formError = validateCreateForm({ beneficiary, arbiter, amount: parsedAmount, deadline });
+  const formError = validateCreateForm({ arbiter, amount: parsedAmount, beneficiary, criteriaURI, deadline, title });
 
   async function approve() {
     if (parsedAmount === null) return;
@@ -372,33 +405,39 @@ function CreateEscrowPage() {
       address: usdcAddress,
       abi: erc20Abi,
       functionName: "approve",
-      args: [arcEscrowAddress, parsedAmount],
+      args: [handselAddress, parsedAmount],
     });
     await queryClient.invalidateQueries();
   }
 
-  async function createEscrow() {
+  async function createAgreement() {
     if (parsedAmount === null || formError) return;
     const deadlineSeconds = BigInt(Math.floor(new Date(deadline).getTime() / 1000));
-    const hash = await run("Creating escrow", {
-      address: arcEscrowAddress,
-      abi: arcEscrowAbi,
-      functionName: "createEscrow",
-      args: [beneficiary as Address, arbiter as Address, parsedAmount, deadlineSeconds, metadataURI.trim()],
+    const hash = await run("Creating agreement", {
+      address: handselAddress,
+      abi: handselAbi,
+      functionName: "createAgreement",
+      args: [
+        beneficiary as Address,
+        arbiter as Address,
+        parsedAmount,
+        deadlineSeconds,
+        title.trim(),
+        criteriaURI.trim(),
+        metadataURI.trim(),
+      ],
     });
-    if (hash) {
-      window.location.hash = "#/";
-    }
+    if (hash) window.location.hash = "#/";
   }
 
   return (
     <div className="form-layout">
       <section className="form-copy">
-        <span className="eyebrow">Create escrow</span>
-        <h1>Fund a testnet service agreement with USDC.</h1>
+        <span className="eyebrow">Create agreement</span>
+        <h1>Lock payment around clear work criteria.</h1>
         <p>
-          Approve USDC, lock funds into ArcEscrow, and let the beneficiary accept before work begins. Network gas is
-          denominated in USDC on Arc testnet.
+          Handsel creates a proof-based service agreement on Arc testnet. The beneficiary submits proof before the
+          client releases USDC.
         </p>
         <div className="balance-strip">
           <span>Wallet balance</span>
@@ -407,22 +446,28 @@ function CreateEscrowPage() {
       </section>
 
       <section className="form-panel">
-        <Field label="Beneficiary address" helper="The wallet that accepts work and receives released funds.">
+        <Field label="Agreement title" helper="A concise work label for dashboard and receipts.">
+          <input value={title} onChange={(event) => setTitle(event.target.value)} />
+        </Field>
+        <Field label="Beneficiary address" helper="Freelancer or service wallet that can submit proof and receive release.">
           <input value={beneficiary} onChange={(event) => setBeneficiary(event.target.value)} placeholder="0x..." />
         </Field>
-        <Field label="Arbiter address" helper="The wallet allowed to resolve disputes with a basis-point split.">
+        <Field label="Arbiter address" helper="Fallback resolver wallet for disputed agreements.">
           <input value={arbiter} onChange={(event) => setArbiter(event.target.value)} placeholder="0x..." />
         </Field>
         <div className="form-grid">
           <Field label="Amount" helper="USDC amount, using 6 decimals.">
             <input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
           </Field>
-          <Field label="Deadline" helper="Refunds open after this time if unresolved.">
+          <Field label="Deadline" helper="Refunds open after this time if the agreement is still created or active.">
             <input type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
           </Field>
         </div>
-        <Field label="Metadata URI or description" helper="Use IPFS, HTTPS, or a concise offchain reference.">
-          <textarea value={metadataURI} onChange={(event) => setMetadataURI(event.target.value)} rows={4} />
+        <Field label="Acceptance criteria" helper="Plain text, hash, or URI describing what proof should show.">
+          <textarea value={criteriaURI} onChange={(event) => setCriteriaURI(event.target.value)} rows={4} />
+        </Field>
+        <Field label="Description or metadata URI" helper="Optional context for the agreement and public receipt.">
+          <textarea value={metadataURI} onChange={(event) => setMetadataURI(event.target.value)} rows={3} />
         </Field>
 
         {formError ? <InlineError message={formError} /> : null}
@@ -443,10 +488,10 @@ function CreateEscrowPage() {
             className="primary-button"
             disabled={!contractsConfigured || !isConnected || needsApproval || Boolean(formError) || isPending}
             type="button"
-            onClick={createEscrow}
+            onClick={createAgreement}
           >
             <Plus size={18} weight="bold" />
-            Create escrow
+            Create agreement
           </button>
         </div>
       </section>
@@ -454,56 +499,65 @@ function CreateEscrowPage() {
   );
 }
 
-function EscrowDetailPage({ escrowId }: { escrowId: bigint }) {
+function AgreementDetailPage({ agreementId }: { agreementId: bigint }) {
+  const agreementRead = useAgreementRead(agreementId);
+  const agreement = useMemo(() => normalizeAgreement(agreementRead.data, agreementId), [agreementRead.data, agreementId]);
+
+  if (agreementRead.isLoading) return <DetailSkeleton />;
+  if (agreementRead.error) return <InlineError message={agreementRead.error.message} />;
+  if (!agreement) return <EmptyState title="Agreement not found" body="Check the id and contract address." />;
+
+  return <AgreementDetail agreement={agreement} />;
+}
+
+function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
   const { address, isConnected } = useAccount();
   const { run, isPending, txState } = useTxRunner();
+  const [proofURI, setProofURI] = useState(agreement.proofURI);
   const [clientBps, setClientBps] = useState("5000");
+  const [validation, setValidation] = useState<ValidationResult | null>(() => loadValidationResult(agreement.id));
 
-  const escrowRead = useReadContract({
-    address: arcEscrowAddress,
-    abi: arcEscrowAbi,
-    functionName: "getEscrow",
-    args: [escrowId],
-    query: { enabled: contractsConfigured },
-  });
+  useEffect(() => {
+    setProofURI(agreement.proofURI);
+    setValidation(loadValidationResult(agreement.id));
+  }, [agreement.id, agreement.proofURI]);
 
-  const escrow = useMemo(() => normalizeEscrow(escrowRead.data, escrowId), [escrowRead.data, escrowId]);
   const beneficiaryBps = 10_000 - Number(clientBps || 0);
-
-  if (escrowRead.isLoading) {
-    return <DetailSkeleton />;
-  }
-
-  if (escrowRead.error) {
-    return <InlineError message={escrowRead.error.message} />;
-  }
-
-  if (!escrow) {
-    return <EmptyState title="Escrow not found" body="Check the id and contract address." />;
-  }
-
   const connected = (address ?? "").toLowerCase();
-  const isClient = connected === escrow.client.toLowerCase();
-  const isBeneficiary = connected === escrow.beneficiary.toLowerCase();
-  const isArbiter = connected === escrow.arbiter.toLowerCase();
+  const isClient = connected === agreement.client.toLowerCase();
+  const isBeneficiary = connected === agreement.beneficiary.toLowerCase();
+  const isArbiter = connected === agreement.arbiter.toLowerCase();
   const isParty = isClient || isBeneficiary;
-  const expired = Number(escrow.deadline) * 1000 < Date.now();
+  const expired = Number(agreement.deadline) * 1000 < Date.now();
+  const timeline = buildTimeline(agreement, validation);
 
-  async function callEscrow(label: string, functionName: string, args: readonly unknown[]) {
+  async function callAgreement(label: string, functionName: HandselWriteFunction, args: readonly unknown[]) {
     await run(label, {
-      address: arcEscrowAddress,
-      abi: arcEscrowAbi,
+      address: handselAddress,
+      abi: handselAbi,
       functionName,
       args,
     });
   }
 
+  async function submitProof() {
+    await callAgreement("Submitting proof", "submitProof", [agreement.id, proofURI.trim()]);
+  }
+
+  function runReview() {
+    const result = validateProof({
+      title: agreement.title,
+      criteria: agreement.criteriaURI,
+      proof: agreement.proofURI || proofURI,
+    });
+    saveValidationResult(agreement.id, result);
+    setValidation(result);
+  }
+
   async function resolveDispute() {
     const clientShare = Number(clientBps);
-    if (!Number.isInteger(clientShare) || clientShare < 0 || clientShare > 10_000 || beneficiaryBps < 0) {
-      return;
-    }
-    await callEscrow("Resolving dispute", "resolveDispute", [escrow.id, clientShare, beneficiaryBps]);
+    if (!Number.isInteger(clientShare) || clientShare < 0 || clientShare > 10_000 || beneficiaryBps < 0) return;
+    await callAgreement("Resolving dispute", "resolveDispute", [agreement.id, clientShare, beneficiaryBps]);
   }
 
   return (
@@ -515,35 +569,47 @@ function EscrowDetailPage({ escrowId }: { escrowId: bigint }) {
         </a>
         <div className="detail-title">
           <div>
-            <span className={`status-pill status-${statusLabels[escrow.status]?.toLowerCase() ?? "unknown"}`}>
-              {statusLabels[escrow.status] ?? "Unknown"}
+            <span className={`status-pill status-${statusLabels[agreement.status]?.toLowerCase() ?? "unknown"}`}>
+              {statusLabels[agreement.status] ?? "Unknown"}
             </span>
-            <h1>Escrow #{escrow.id.toString()}</h1>
+            <h1>{agreement.title || `Agreement #${agreement.id.toString()}`}</h1>
           </div>
-          <strong>{formatUsdc(escrow.amount)}</strong>
-        </div>
-
-        <div className="timeline">
-          {statusLabels.map((status, index) => (
-            <div className={index === escrow.status ? "timeline-step current" : "timeline-step"} key={status}>
-              <span />
-              <p>{status}</p>
-            </div>
-          ))}
+          <strong>{formatUsdc(agreement.amount)}</strong>
         </div>
 
         <div className="detail-grid">
-          <DetailItem label="Client" value={escrow.client} copy />
-          <DetailItem label="Beneficiary" value={escrow.beneficiary} copy />
-          <DetailItem label="Arbiter" value={escrow.arbiter} copy />
-          <DetailItem label="Deadline" value={formatDate(escrow.deadline)} />
-          <DetailItem label="Created" value={formatDate(escrow.createdAt)} />
-          <DetailItem label="Accepted" value={escrow.acceptedAt > 0n ? formatDate(escrow.acceptedAt) : "Not accepted"} />
+          <DetailItem label="Client" value={agreement.client} copy />
+          <DetailItem label="Beneficiary" value={agreement.beneficiary} copy />
+          <DetailItem label="Arbiter" value={agreement.arbiter} copy />
+          <DetailItem label="Deadline" value={formatDate(agreement.deadline)} />
+          <DetailItem label="Created" value={formatDate(agreement.createdAt)} />
+          <DetailItem label="Submitted" value={agreement.submittedAt > 0n ? formatDate(agreement.submittedAt) : "No proof yet"} />
         </div>
 
         <section className="metadata-panel">
-          <span className="eyebrow">Metadata</span>
-          <p>{escrow.metadataURI || "No metadata supplied."}</p>
+          <span className="eyebrow">Acceptance criteria</span>
+          <p>{agreement.criteriaURI || "No criteria supplied."}</p>
+        </section>
+
+        <section className="metadata-panel">
+          <span className="eyebrow">Proof submission</span>
+          <p>{agreement.proofURI || "No proof has been submitted yet."}</p>
+        </section>
+
+        <section className="metadata-panel">
+          <span className="eyebrow">Timeline</span>
+          <div className="timeline-list">
+            {timeline.map((event) => (
+              <div className={event.complete ? "timeline-item complete" : "timeline-item"} key={event.label}>
+                <span />
+                <div>
+                  <strong>{event.label}</strong>
+                  <p>{event.detail}</p>
+                  {event.timestamp ? <small>{typeof event.timestamp === "bigint" ? formatDate(event.timestamp) : formatIso(event.timestamp)}</small> : null}
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
       </section>
 
@@ -551,40 +617,79 @@ function EscrowDetailPage({ escrowId }: { escrowId: bigint }) {
         <div className="section-heading compact">
           <div>
             <span className="eyebrow">Actions</span>
-            <h2>Role-aware settlement</h2>
+            <h2>Proof-first settlement</h2>
           </div>
         </div>
-        {!isConnected ? <InlineError message="Connect a wallet to perform escrow actions." /> : null}
-        {escrow.status === 0 && isBeneficiary ? (
-          <ActionButton icon={<CheckCircle size={18} weight="duotone" />} disabled={isPending} onClick={() => callEscrow("Accepting escrow", "acceptEscrow", [escrow.id])}>
-            Accept escrow
+        {!isConnected ? <InlineError message="Connect a wallet to perform agreement actions." /> : null}
+
+        {agreement.status === 0 && isBeneficiary ? (
+          <ActionButton icon={<CheckCircle size={18} weight="duotone" />} disabled={isPending} onClick={() => callAgreement("Accepting agreement", "acceptAgreement", [agreement.id])}>
+            Accept agreement
           </ActionButton>
         ) : null}
-        {escrow.status === 1 && isClient ? (
-          <ActionButton icon={<CheckCircle size={18} weight="duotone" />} disabled={isPending} onClick={() => callEscrow("Releasing escrow", "releaseEscrow", [escrow.id])}>
-            Release funds
+
+        {agreement.status === 1 && isBeneficiary ? (
+          <div className="proof-panel">
+            <Field label="Proof text or URL" helper="GitHub PR, deployed site, Figma, document, image, video, or delivery notes.">
+              <textarea value={proofURI} onChange={(event) => setProofURI(event.target.value)} rows={4} />
+            </Field>
+            <ActionButton icon={<UploadSimple size={18} weight="duotone" />} disabled={isPending || proofURI.trim().length < 10} onClick={submitProof}>
+              Submit proof
+            </ActionButton>
+          </div>
+        ) : null}
+
+        {agreement.status === 2 ? (
+          <div className="review-panel">
+            <div className={`recommendation recommendation-${validation?.recommendation ?? "empty"}`}>
+              <Brain size={18} weight="duotone" />
+              <div>
+                <strong>{validation ? validation.recommendation.replace("_", " ") : "Not reviewed"}</strong>
+                <p>{validation?.summary ?? "Run local MVP review before final client approval."}</p>
+              </div>
+            </div>
+            {isClient ? (
+              <>
+                <ActionButton icon={<Brain size={18} weight="duotone" />} disabled={isPending} onClick={runReview}>
+                  Run AI-assisted review
+                </ActionButton>
+                <ActionButton icon={<CheckCircle size={18} weight="duotone" />} disabled={isPending} onClick={() => callAgreement("Approving proof", "approveProof", [agreement.id])}>
+                  Approve and release
+                </ActionButton>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+
+        {agreement.status === 1 && isClient ? (
+          <ActionButton icon={<CheckCircle size={18} weight="duotone" />} disabled={isPending} onClick={() => callAgreement("Manual release", "releaseAgreement", [agreement.id])}>
+            Manual release
           </ActionButton>
         ) : null}
-        {escrow.status === 0 && isClient ? (
-          <ActionButton icon={<XCircle size={18} weight="duotone" />} disabled={isPending} onClick={() => callEscrow("Cancelling escrow", "cancelUnaccepted", [escrow.id])}>
+
+        {agreement.status === 0 && isClient ? (
+          <ActionButton icon={<XCircle size={18} weight="duotone" />} disabled={isPending} onClick={() => callAgreement("Cancelling agreement", "cancelUnaccepted", [agreement.id])}>
             Cancel unaccepted
           </ActionButton>
         ) : null}
-        {escrow.status === 1 && isParty ? (
-          <ActionButton icon={<Scales size={18} weight="duotone" />} disabled={isPending} onClick={() => callEscrow("Opening dispute", "openDispute", [escrow.id])}>
+
+        {(agreement.status === 1 || agreement.status === 2) && isParty ? (
+          <ActionButton icon={<Scales size={18} weight="duotone" />} disabled={isPending} onClick={() => callAgreement("Opening dispute", "openDispute", [agreement.id])}>
             Open dispute
           </ActionButton>
         ) : null}
-        {(escrow.status === 0 || escrow.status === 1) && isParty ? (
+
+        {(agreement.status === 0 || agreement.status === 1) && isParty ? (
           <ActionButton
             icon={<ClockCountdown size={18} weight="duotone" />}
             disabled={isPending || !expired}
-            onClick={() => callEscrow("Refunding expired escrow", "refundExpired", [escrow.id])}
+            onClick={() => callAgreement("Refunding expired agreement", "refundExpired", [agreement.id])}
           >
             Refund expired
           </ActionButton>
         ) : null}
-        {escrow.status === 3 && isArbiter ? (
+
+        {agreement.status === 4 && isArbiter ? (
           <div className="resolve-panel">
             <Field label="Client bps" helper={`Beneficiary receives ${beneficiaryBps.toLocaleString()} bps.`}>
               <input value={clientBps} inputMode="numeric" onChange={(event) => setClientBps(event.target.value)} />
@@ -594,10 +699,78 @@ function EscrowDetailPage({ escrowId }: { escrowId: bigint }) {
             </ActionButton>
           </div>
         ) : null}
+
+        <a className="receipt-link" href={`#/receipts/${agreement.id.toString()}`}>
+          <Receipt size={18} weight="duotone" />
+          Public receipt
+        </a>
         <TxStatus state={txState} />
       </aside>
     </div>
   );
+}
+
+function ReceiptPage({ agreementId }: { agreementId: bigint }) {
+  const agreementRead = useAgreementRead(agreementId);
+  const agreement = useMemo(() => normalizeAgreement(agreementRead.data, agreementId), [agreementRead.data, agreementId]);
+  const validation = useMemo(() => loadValidationResult(agreementId), [agreementId]);
+
+  if (agreementRead.isLoading) return <DetailSkeleton />;
+  if (agreementRead.error) return <InlineError message={agreementRead.error.message} />;
+  if (!agreement) return <EmptyState title="Receipt not found" body="Check the id and contract address." />;
+
+  const receipt = buildReceipt(
+    {
+      id: agreement.id,
+      client: agreement.client,
+      beneficiary: agreement.beneficiary,
+      arbiter: agreement.arbiter,
+      amountLabel: formatUsdc(agreement.amount),
+      title: agreement.title,
+      criteriaURI: agreement.criteriaURI,
+      proofURI: agreement.proofURI,
+      statusLabel: statusLabels[agreement.status] ?? "Unknown",
+    },
+    validation,
+  );
+
+  return (
+    <section className="receipt-panel">
+      <a className="back-link" href={`#/agreements/${agreement.id.toString()}`}>
+        <ArrowRight size={16} weight="bold" />
+        Agreement
+      </a>
+      <div className="detail-title">
+        <div>
+          <span className={`status-pill status-${receipt.status.toLowerCase()}`}>{receipt.status}</span>
+          <h1>{receipt.heading}</h1>
+        </div>
+        <strong>{formatUsdc(agreement.amount)}</strong>
+      </div>
+      <p className="muted-copy">
+        Public status view for a proof-based service agreement. This testnet receipt is a product record, not a legal
+        settlement document.
+      </p>
+      <div className="receipt-grid">
+        {receipt.parties.map((item) => (
+          <DetailItem key={item.label} label={item.label} value={item.value} copy />
+        ))}
+        {receipt.facts.map((item) => (
+          <DetailItem key={item.label} label={item.label} value={item.value} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function useAgreementRead(agreementId: bigint) {
+  return useReadContract({
+    address: handselAddress,
+    abi: handselAbi,
+    functionName: "getAgreement",
+    args: [agreementId],
+    query: { enabled: contractsConfigured },
+  });
 }
 
 function ActionButton({
@@ -647,7 +820,7 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="empty-state">
       <div className="panel-icon">
-        <ShieldCheck size={22} weight="duotone" />
+        <FileText size={22} weight="duotone" />
       </div>
       <strong>{title}</strong>
       <p>{body}</p>
@@ -666,9 +839,8 @@ function InlineError({ message }: { message: string }) {
 
 function TxStatus({ state }: { state?: TxState }) {
   if (!state) return null;
-  if (state.error) {
-    return <InlineError message={state.error} />;
-  }
+  if (state.error) return <InlineError message={state.error} />;
+
   return (
     <div className="tx-status">
       <CheckCircle size={18} weight="duotone" />
@@ -680,11 +852,11 @@ function TxStatus({ state }: { state?: TxState }) {
   );
 }
 
-function EscrowListSkeleton() {
+function AgreementListSkeleton() {
   return (
-    <div className="escrow-list">
+    <div className="agreement-list">
       {[0, 1, 2].map((item) => (
-        <div className="escrow-row skeleton-row" key={item}>
+        <div className="agreement-row skeleton-row" key={item}>
           <div>
             <div className="skeleton short" />
             <div className="skeleton medium" />
@@ -728,10 +900,7 @@ function useTxRunner() {
       setTxState({ label, hash, success: "Transaction confirmed" });
       return hash;
     } catch (error) {
-      setTxState({
-        label,
-        error: error instanceof Error ? error.message : "Transaction failed.",
-      });
+      setTxState({ label, error: error instanceof Error ? error.message : "Transaction failed." });
       return undefined;
     }
   }
@@ -739,9 +908,9 @@ function useTxRunner() {
   return { run, isPending, txState };
 }
 
-function normalizeEscrow(raw: unknown, id: bigint): EscrowRecord | null {
+function normalizeAgreement(raw: unknown, id: bigint): AgreementRecord | null {
   if (!raw) return null;
-  const record = raw as Partial<EscrowRecord> & readonly unknown[];
+  const record = raw as Partial<AgreementRecord> & readonly unknown[];
 
   return {
     id,
@@ -750,11 +919,15 @@ function normalizeEscrow(raw: unknown, id: bigint): EscrowRecord | null {
     arbiter: (record.arbiter ?? record[2]) as Address,
     amount: (record.amount ?? record[3]) as bigint,
     deadline: (record.deadline ?? record[4]) as bigint,
-    metadataURI: (record.metadataURI ?? record[5]) as string,
-    status: Number(record.status ?? record[6] ?? 0),
-    createdAt: (record.createdAt ?? record[7]) as bigint,
-    acceptedAt: (record.acceptedAt ?? record[8]) as bigint,
-    completedAt: (record.completedAt ?? record[9]) as bigint,
+    title: (record.title ?? record[5]) as string,
+    criteriaURI: (record.criteriaURI ?? record[6]) as string,
+    metadataURI: (record.metadataURI ?? record[7]) as string,
+    proofURI: (record.proofURI ?? record[8]) as string,
+    status: Number(record.status ?? record[9] ?? 0),
+    createdAt: (record.createdAt ?? record[10]) as bigint,
+    acceptedAt: (record.acceptedAt ?? record[11]) as bigint,
+    submittedAt: (record.submittedAt ?? record[12]) as bigint,
+    completedAt: (record.completedAt ?? record[13]) as bigint,
   };
 }
 
@@ -776,17 +949,23 @@ function validateCreateForm({
   arbiter,
   amount,
   beneficiary,
+  criteriaURI,
   deadline,
+  title,
 }: {
   arbiter: string;
   amount: bigint | null;
   beneficiary: string;
+  criteriaURI: string;
   deadline: string;
+  title: string;
 }) {
+  if (!title.trim()) return "Enter an agreement title.";
   if (!isAddress(beneficiary)) return "Enter a valid beneficiary address.";
   if (!isAddress(arbiter)) return "Enter a valid arbiter address.";
   if (beneficiary.toLowerCase() === arbiter.toLowerCase()) return "Beneficiary and arbiter must be different wallets.";
   if (amount === null || amount <= 0n) return "Enter a positive USDC amount.";
+  if (criteriaURI.trim().length < 10) return "Add clear acceptance criteria.";
   const deadlineMs = new Date(deadline).getTime();
   if (!Number.isFinite(deadlineMs) || deadlineMs <= Date.now()) return "Deadline must be in the future.";
   return "";
@@ -819,4 +998,14 @@ function formatDate(timestamp: bigint) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(Number(timestamp) * 1000));
+}
+
+function formatIso(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }

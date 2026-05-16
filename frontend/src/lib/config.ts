@@ -13,7 +13,7 @@ function envAddress(value: string | undefined): `0x${string}` {
   return value && isAddress(value) ? value : zeroAddress;
 }
 
-export const arcEscrowAddress = envAddress(import.meta.env.VITE_ARC_ESCROW_ADDRESS);
+export const handselAddress = envAddress(import.meta.env.VITE_HANDSEL_CONTRACT_ADDRESS);
 export const usdcAddress = envAddress(import.meta.env.VITE_USDC_ADDRESS);
 export const usdcDecimals = 6;
 
@@ -21,7 +21,7 @@ export const configIssues = [
   !rawChainId ? "VITE_ARC_TESTNET_CHAIN_ID is not set." : null,
   rawChainId && arcChainId === 31337 ? "VITE_ARC_TESTNET_CHAIN_ID is not a valid positive integer." : null,
   !import.meta.env.VITE_ARC_TESTNET_RPC_URL ? "VITE_ARC_TESTNET_RPC_URL is not set." : null,
-  arcEscrowAddress === zeroAddress ? "VITE_ARC_ESCROW_ADDRESS is not set to a valid address." : null,
+  handselAddress === zeroAddress ? "VITE_HANDSEL_CONTRACT_ADDRESS is not set to a valid address." : null,
   usdcAddress === zeroAddress ? "VITE_USDC_ADDRESS is not set to a valid address." : null,
 ].filter(Boolean) as string[];
 

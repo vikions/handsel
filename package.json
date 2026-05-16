@@ -1,12 +1,12 @@
 {
-  "name": "arc-escrow",
+  "name": "handsel",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.11.0",
+  "packageManager": "pnpm@10.13.1",
   "scripts": {
-    "build": "pnpm --filter @arc-escrow/contracts build && pnpm --filter @arc-escrow/frontend build",
-    "compile": "pnpm --filter @arc-escrow/contracts compile",
-    "dev": "pnpm --filter @arc-escrow/frontend dev",
-    "test": "pnpm --filter @arc-escrow/contracts test"
+    "build": "pnpm --filter @handsel/contracts build && pnpm --filter @handsel/frontend build",
+    "compile": "pnpm --filter @handsel/contracts compile",
+    "dev": "pnpm --filter @handsel/frontend dev",
+    "test": "pnpm --filter @handsel/contracts test"
   }
 }

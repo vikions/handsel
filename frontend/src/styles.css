@@ -192,7 +192,8 @@ a {
 .form-panel,
 .actions-panel,
 .detail-main,
-.metadata-panel {
+.metadata-panel,
+.receipt-panel {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   background: rgba(18, 24, 22, 0.78);
@@ -272,6 +273,10 @@ p {
 .form-copy p {
   max-width: 620px;
   font-size: 17px;
+}
+
+.muted-copy {
+  color: #8c9992;
 }
 
 .hero-actions,
@@ -386,12 +391,12 @@ p {
   font-weight: 800;
 }
 
-.escrow-list {
+.agreement-list {
   display: grid;
   gap: 10px;
 }
 
-.escrow-row {
+.agreement-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
@@ -406,19 +411,19 @@ p {
     background 180ms ease;
 }
 
-.escrow-row:hover {
+.agreement-row:hover {
   transform: translateY(-1px);
   border-color: rgba(100, 198, 168, 0.32);
   background: rgba(100, 198, 168, 0.06);
 }
 
-.escrow-row strong,
-.escrow-row p {
+.agreement-row strong,
+.agreement-row p {
   display: block;
   margin: 8px 0 0;
 }
 
-.escrow-row p {
+.agreement-row p {
   overflow: hidden;
   color: #8c9992;
   text-overflow: ellipsis;
@@ -454,6 +459,7 @@ p {
 }
 
 .status-active,
+.status-submitted,
 .status-completed,
 .status-resolved {
   border-color: rgba(100, 198, 168, 0.38);
@@ -710,6 +716,41 @@ textarea:focus {
   overflow-wrap: anywhere;
 }
 
+.timeline-list {
+  display: grid;
+  gap: 14px;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+}
+
+.timeline-item > span {
+  width: 12px;
+  height: 12px;
+  margin-top: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.timeline-item.complete > span {
+  border-color: rgba(100, 198, 168, 0.52);
+  background: #64c6a8;
+}
+
+.timeline-item p {
+  margin: 5px 0 0;
+}
+
+.timeline-item small {
+  display: block;
+  margin-top: 5px;
+  color: #7f8b85;
+}
+
 .actions-panel {
   position: sticky;
   top: 98px;
@@ -724,6 +765,78 @@ textarea:focus {
   margin-top: 12px;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.proof-panel,
+.review-panel {
+  margin-bottom: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.recommendation {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.recommendation strong {
+  display: block;
+  text-transform: capitalize;
+}
+
+.recommendation p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recommendation-approve {
+  border-color: rgba(100, 198, 168, 0.34);
+  background: rgba(100, 198, 168, 0.08);
+}
+
+.recommendation-needs_review {
+  border-color: rgba(210, 164, 83, 0.34);
+  background: rgba(210, 164, 83, 0.08);
+}
+
+.recommendation-likely_mismatch {
+  border-color: rgba(235, 137, 116, 0.3);
+  background: rgba(235, 137, 116, 0.08);
+}
+
+.receipt-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  border: 1px solid rgba(100, 198, 168, 0.24);
+  border-radius: 8px;
+  background: rgba(100, 198, 168, 0.07);
+  color: #99e2c9;
+  font-weight: 800;
+}
+
+.receipt-panel {
+  padding: 22px;
+}
+
+.receipt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 22px;
 }
 
 .skeleton {
@@ -796,7 +909,7 @@ textarea:focus {
   .detail-layout,
   .detail-title,
   .section-heading,
-  .escrow-row {
+  .agreement-row {
     grid-template-columns: 1fr;
   }
 
@@ -825,6 +938,7 @@ textarea:focus {
 
   .form-grid,
   .detail-grid,
+  .receipt-grid,
   .timeline {
     grid-template-columns: 1fr;
   }

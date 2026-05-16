@@ -7,15 +7,15 @@ async function main() {
   }
 
   const [deployer] = await ethers.getSigners();
-  const ArcEscrow = await ethers.getContractFactory("ArcEscrow");
-  const arcEscrow = await ArcEscrow.deploy(usdcAddress);
+  const HandselAgreement = await ethers.getContractFactory("HandselAgreement");
+  const handselAgreement = await HandselAgreement.deploy(usdcAddress);
 
-  await arcEscrow.waitForDeployment();
+  await handselAgreement.waitForDeployment();
 
-  const escrowAddress = await arcEscrow.getAddress();
+  const agreementAddress = await handselAgreement.getAddress();
   console.log(`Deployer: ${deployer.address}`);
   console.log(`USDC: ${usdcAddress}`);
-  console.log(`ArcEscrow: ${escrowAddress}`);
+  console.log(`HandselAgreement: ${agreementAddress}`);
 }
 
 main().catch((error) => {
