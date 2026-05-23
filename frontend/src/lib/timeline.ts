@@ -37,7 +37,7 @@ export function buildTimeline(agreement: TimelineAgreement, validation: Validati
     },
     {
       label: "AI-assisted review",
-      detail: validation ? validation.summary : "Optional local MVP recommendation has not been run.",
+      detail: validation ? validation.summary : "Optional local recommendation has not been run.",
       timestamp: validation?.reviewedAt,
       complete: Boolean(validation),
     },

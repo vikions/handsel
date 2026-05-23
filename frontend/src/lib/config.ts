@@ -18,18 +18,18 @@ export const usdcAddress = envAddress(import.meta.env.VITE_USDC_ADDRESS);
 export const usdcDecimals = 6;
 
 export const configIssues = [
-  !rawChainId ? "VITE_ARC_TESTNET_CHAIN_ID is not set." : null,
-  rawChainId && arcChainId === 31337 ? "VITE_ARC_TESTNET_CHAIN_ID is not a valid positive integer." : null,
-  !import.meta.env.VITE_ARC_TESTNET_RPC_URL ? "VITE_ARC_TESTNET_RPC_URL is not set." : null,
-  handselAddress === zeroAddress ? "VITE_HANDSEL_CONTRACT_ADDRESS is not set to a valid address." : null,
-  usdcAddress === zeroAddress ? "VITE_USDC_ADDRESS is not set to a valid address." : null,
+  !rawChainId ? "Arc chain id is missing." : null,
+  rawChainId && arcChainId === 31337 ? "Arc chain id is not valid." : null,
+  !import.meta.env.VITE_ARC_TESTNET_RPC_URL ? "Arc RPC URL is missing." : null,
+  handselAddress === zeroAddress ? "Handsel contract address is missing or invalid." : null,
+  usdcAddress === zeroAddress ? "USDC address is missing or invalid." : null,
 ].filter(Boolean) as string[];
 
 export const contractsConfigured = configIssues.length === 0;
 
 export const arcTestnet = defineChain({
   id: arcChainId,
-  name: "Arc Testnet",
+  name: "Arc",
   nativeCurrency: {
     name: "USDC",
     symbol: "USDC",

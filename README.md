@@ -125,6 +125,63 @@ Build all packages:
 pnpm build
 ```
 
+Run the local browser app:
+
+```bash
+pnpm dev
+```
+
+## Pre-Deployment Checklist
+
+Before deploying to Arc testnet, verify locally:
+
+```bash
+pnpm --filter @handsel/contracts test
+pnpm --filter @handsel/frontend build
+pnpm build
+```
+
+For a later Arc testnet deployment, set these values in a local `.env` file only:
+
+```bash
+ARC_TESTNET_RPC_URL=
+ARC_TESTNET_CHAIN_ID=
+PRIVATE_KEY=
+USDC_ADDRESS=
+```
+
+Do not commit private keys or real wallet credentials. The deployment script also checks that `ARC_TESTNET_RPC_URL`, `ARC_TESTNET_CHAIN_ID`, and `USDC_ADDRESS` are present before it can deploy.
+
+When ready to deploy later:
+
+```bash
+pnpm --filter @handsel/contracts deploy:arc
+```
+
+After deployment, set the frontend environment to the deployed contract and USDC addresses:
+
+```bash
+VITE_ARC_TESTNET_RPC_URL=
+VITE_ARC_TESTNET_CHAIN_ID=
+VITE_USDC_ADDRESS=
+VITE_HANDSEL_CONTRACT_ADDRESS=
+```
+
+Then run the local browser smoke test:
+
+```bash
+pnpm dev
+```
+
+Recommended browser flow:
+
+1. Connect wallet on Arc testnet.
+2. Create an agreement with title, criteria, beneficiary, arbiter, amount, and deadline.
+3. Switch to the beneficiary wallet and accept.
+4. Submit proof text or a proof URL.
+5. Switch to the client wallet, run local AI-assisted review, and approve release.
+6. Open the receipt page and confirm the final status and settlement summary.
+
 ## Grant Alignment
 
 Handsel demonstrates real-world economic activity on Arc testnet: structured service agreements, USDC commitment, proof submission, AI-assisted review, human approval, fallback dispute/refund flow, and public settlement receipts.

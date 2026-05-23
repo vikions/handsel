@@ -149,17 +149,20 @@ describe("HandselAgreement", function () {
   it("allows the client to approve proof and release USDC", async function () {
     const context = await loadFixture(deployFixture);
     const { agreementId } = await createAcceptAndSubmit(context);
+    const handselAddress = await context.handsel.getAddress();
+    const beneficiaryBalanceBefore = await context.usdc.balanceOf(context.beneficiary.address);
+    const contractBalanceBefore = await context.usdc.balanceOf(handselAddress);
 
     await expect(context.handsel.connect(context.client).approveProof(agreementId))
       .to.emit(context.handsel, "ProofApprovedAndReleased")
-      .withArgs(agreementId, context.client.address, context.beneficiary.address, context.amount)
-      .and.to.changeTokenBalances(
-        context.usdc,
-        [context.beneficiary, context.handsel],
-        [context.amount, -context.amount],
-      );
+      .withArgs(agreementId, context.client.address, context.beneficiary.address, context.amount);
 
+    const beneficiaryBalanceAfter = await context.usdc.balanceOf(context.beneficiary.address);
+    const contractBalanceAfter = await context.usdc.balanceOf(handselAddress);
     const stored = await context.handsel.getAgreement(agreementId);
+
+    expect(beneficiaryBalanceAfter - beneficiaryBalanceBefore).to.equal(context.amount);
+    expect(contractBalanceBefore - contractBalanceAfter).to.equal(context.amount);
     expect(stored.status).to.equal(3n);
     expect(await context.handsel.completedAgreements()).to.equal(1n);
   });

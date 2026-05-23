@@ -7,6 +7,9 @@ coverage/
 typechain-types/
 artifacts/
 cache/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 .env
 .env.local
 .DS_Store

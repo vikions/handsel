@@ -50,6 +50,8 @@ const statusLabels = [
 ] as const;
 
 type Route =
+  | { page: "landing" }
+  | { page: "overview" }
   | { page: "dashboard" }
   | { page: "create" }
   | { page: "detail"; agreementId: bigint }
@@ -100,13 +102,17 @@ type WriteRequest = Parameters<ReturnType<typeof useWriteContract>["writeContrac
 export function App() {
   const route = useHashRoute();
 
+  if (route.page === "landing") {
+    return <LandingPage />;
+  }
+
   return (
     <div className="app-shell">
       <div className="background-grid" aria-hidden="true" />
-      <TestnetBanner />
       <Header route={route} />
       <main className="page-frame">
         <ConfigWarning />
+        {route.page === "overview" ? <OverviewPage /> : null}
         {route.page === "dashboard" ? <Dashboard /> : null}
         {route.page === "create" ? <CreateAgreementPage /> : null}
         {route.page === "detail" ? <AgreementDetailPage agreementId={route.agreementId} /> : null}
@@ -126,6 +132,9 @@ function useHashRoute(): Route {
   }, []);
 
   const normalized = hash.replace(/^#/, "") || "/";
+  if (normalized === "/") return { page: "landing" };
+  if (normalized === "/overview") return { page: "overview" };
+  if (normalized === "/dashboard") return { page: "dashboard" };
   if (normalized === "/create") return { page: "create" };
   if (normalized.startsWith("/agreements/")) {
     return routeWithId(normalized.replace("/agreements/", ""), "detail");
@@ -133,7 +142,7 @@ function useHashRoute(): Route {
   if (normalized.startsWith("/receipts/")) {
     return routeWithId(normalized.replace("/receipts/", ""), "receipt");
   }
-  return { page: "dashboard" };
+  return { page: "landing" };
 }
 
 function routeWithId(value: string, page: "detail" | "receipt"): Route {
@@ -145,18 +154,153 @@ function routeWithId(value: string, page: "detail" | "receipt"): Route {
   }
 }
 
+function LandingPage() {
+  const fontsReady = useLandingFontsReady();
+
+  return (
+    <div className={fontsReady ? "landing-shell fonts-ready" : "landing-shell"}>
+      <LandingProofSurface />
+      <div className="landing-surface-gradient" aria-hidden="true" />
+      <header className="landing-nav">
+        <a className="landing-logo" href="#/" aria-label="Handsel home">
+          Handsel
+        </a>
+        <nav className="landing-menu" aria-label="Landing navigation">
+          <a href="#/">Home</a>
+          <a href="#/overview">Overview</a>
+          <a href="#/dashboard">Dashboard</a>
+          <a href="#/create">Create</a>
+        </nav>
+        <a className="landing-nav-cta" href="#/create">
+          Create agreement
+        </a>
+      </header>
+      <main className="landing-hero">
+        <p className="landing-kicker">Built on Arc technology</p>
+        <h1>
+          <span className="headline-line">Proof-based settlement</span>
+          <span className="headline-line headline-muted">for real work.</span>
+        </h1>
+        <p className="landing-copy">Define the work. Hold the payment. Submit proof. Release on approval.</p>
+        <div className="landing-actions">
+          <a className="landing-primary" href="#/overview">
+            View Overview
+          </a>
+          <a className="landing-secondary" href="#/create">
+            Create Agreement
+          </a>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function useLandingFontsReady() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const finish = () => {
+      if (!cancelled) setReady(true);
+    };
+
+    if (!("fonts" in document)) {
+      finish();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timeout = window.setTimeout(finish, 1200);
+    void document.fonts.ready.then(() => {
+      window.clearTimeout(timeout);
+      finish();
+    });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, []);
+
+  return ready;
+}
+
+function LandingProofSurface() {
+  return (
+    <div className="landing-surface-layer" aria-hidden="true">
+      <div className="proof-surface">
+        <div className="surface-rail rail-left">
+          <span>criteria locked</span>
+          <span>proof submitted</span>
+          <span>client approved</span>
+        </div>
+        <div className="surface-card criteria-card">
+          <span className="surface-label">Client</span>
+          <strong>Maya Chen hires Ilya Moroz</strong>
+          <p>300 USDC held for a cafe booking page. Release requires live URL, source PR, and handoff notes.</p>
+          <div className="surface-lines">
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+        <div className="surface-card proof-card">
+          <span className="surface-label">Freelancer proof</span>
+          <strong>staging.oma-cafe.app + PR #47</strong>
+          <p>Responsive build, checkout screenshots, and QA notes attached before approval.</p>
+          <div className="surface-meter">
+            <span />
+          </div>
+        </div>
+        <div className="surface-card receipt-card">
+          <span className="surface-label">Settlement receipt</span>
+          <div className="receipt-line">
+            <span>Client</span>
+            <strong>Maya C.</strong>
+          </div>
+          <div className="receipt-line">
+            <span>Freelancer</span>
+            <strong>Ilya M.</strong>
+          </div>
+          <div className="receipt-line">
+            <span>Released</span>
+            <strong>300 USDC</strong>
+          </div>
+          <div className="receipt-stamp">approved by client</div>
+        </div>
+        <div className="surface-card mini-card mini-card-one">
+          <span className="surface-label">Podcast edit</span>
+          <strong>75 USDC</strong>
+          <p>Proof: final WAV and transcript link.</p>
+        </div>
+        <div className="surface-card mini-card mini-card-two">
+          <span className="surface-label">Figma cleanup</span>
+          <strong>120 USDC</strong>
+          <p>Proof: shared file with annotated changes.</p>
+        </div>
+        <div className="surface-rail rail-right">
+          <span>Created</span>
+          <span>Submitted</span>
+          <span>Completed</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Header({ route }: { route: Route }) {
   return (
     <header className="topbar">
       <a className="brand" href="#/">
-        <span className="brand-mark">
-          <ShieldCheck size={20} weight="duotone" />
-        </span>
         <span>Handsel</span>
       </a>
       <nav className="nav-links" aria-label="Primary navigation">
-        <a className={route.page === "dashboard" ? "active" : ""} href="#/">
+        <a className={route.page === "dashboard" ? "active" : ""} href="#/dashboard">
           Dashboard
+        </a>
+        <a className={route.page === "overview" ? "active" : ""} href="#/overview">
+          Overview
         </a>
         <a className={route.page === "create" ? "active" : ""} href="#/create">
           Create
@@ -191,15 +335,6 @@ function ConnectButton() {
   );
 }
 
-function TestnetBanner() {
-  return (
-    <div className="testnet-banner">
-      <span>Handsel testnet MVP</span>
-      <span>Proof-based settlement for real work.</span>
-    </div>
-  );
-}
-
 function ConfigWarning() {
   if (contractsConfigured) return null;
 
@@ -207,8 +342,8 @@ function ConfigWarning() {
     <section className="notice-panel">
       <WarningCircle size={20} weight="duotone" />
       <div>
-        <strong>Configuration needed</strong>
-        <p>Set the Arc testnet RPC, chain id, Handsel contract address, and USDC token address before live reads or writes.</p>
+        <strong>App config needed</strong>
+        <p>Add the Arc RPC, chain id, Handsel contract address, and USDC address for live reads and writes.</p>
         <ul>
           {configIssues.map((issue) => (
             <li key={issue}>{issue}</li>
@@ -216,6 +351,109 @@ function ConfigWarning() {
         </ul>
       </div>
     </section>
+  );
+}
+
+function OverviewPage() {
+  const stats = useReadContracts({
+    contracts: [
+      { address: handselAddress, abi: handselAbi, functionName: "getAgreementCount" },
+      { address: handselAddress, abi: handselAbi, functionName: "totalVolume" },
+      { address: handselAddress, abi: handselAbi, functionName: "completedAgreements" },
+      { address: handselAddress, abi: handselAbi, functionName: "disputedAgreements" },
+    ],
+    query: { enabled: contractsConfigured },
+  });
+
+  const totalAgreements = readBigInt(stats.data, 0);
+  const totalVolume = readBigInt(stats.data, 1);
+  const completed = readBigInt(stats.data, 2);
+  const disputed = readBigInt(stats.data, 3);
+  const sampleSize = Number(totalAgreements > 80n ? 80n : totalAgreements);
+  const overviewIds = useMemo(() => Array.from({ length: sampleSize }, (_, index) => BigInt(index)), [sampleSize]);
+
+  const agreementsRead = useReadContracts({
+    contracts: overviewIds.map((id) => ({
+      address: handselAddress,
+      abi: handselAbi,
+      functionName: "getAgreement",
+      args: [id],
+    })),
+    query: { enabled: contractsConfigured && overviewIds.length > 0 },
+  });
+
+  const agreements = useMemo(
+    () =>
+      (agreementsRead.data ?? [])
+        .map((row, index) => normalizeAgreement((row as ReadRow).result, overviewIds[index]))
+        .filter((agreement): agreement is AgreementRecord => Boolean(agreement)),
+    [agreementsRead.data, overviewIds],
+  );
+
+  const uniqueClients = new Set(agreements.map((agreement) => agreement.client.toLowerCase())).size;
+  const uniqueFreelancers = new Set(agreements.map((agreement) => agreement.beneficiary.toLowerCase())).size;
+  const inProgress = agreements.filter((agreement) => agreement.status === 1 || agreement.status === 2).length;
+
+  return (
+    <div className="overview-layout">
+      <section className="overview-hero">
+        <span className="eyebrow">Protocol overview</span>
+        <h1>Real work moving through Handsel.</h1>
+        <p>Live contract reads for agreements, USDC volume, clients, freelancers, and settlement status.</p>
+      </section>
+
+      <section className="overview-number-grid" aria-label="Protocol overview metrics">
+        <OverviewMetric label="Agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
+        <OverviewMetric label="USDC volume" value={formatUsdc(totalVolume)} loading={stats.isLoading} />
+        <OverviewMetric label="Clients" value={uniqueClients.toString()} loading={agreementsRead.isLoading} />
+        <OverviewMetric label="Freelancers" value={uniqueFreelancers.toString()} loading={agreementsRead.isLoading} />
+      </section>
+
+      <section className="overview-ledger">
+        <div className="overview-status">
+          <span>Completed</span>
+          <strong>{completed.toString()}</strong>
+        </div>
+        <div className="overview-status">
+          <span>In progress</span>
+          <strong>{inProgress.toString()}</strong>
+        </div>
+        <div className="overview-status">
+          <span>Disputed</span>
+          <strong>{disputed.toString()}</strong>
+        </div>
+      </section>
+
+      <section className="overview-flow">
+        <div>
+          <span>1</span>
+          <strong>Define work</strong>
+          <p>Client sets amount, recipient, deadline, and proof requirements.</p>
+        </div>
+        <div>
+          <span>2</span>
+          <strong>Submit proof</strong>
+          <p>Freelancer attaches delivery evidence such as URL, PR, file, or notes.</p>
+        </div>
+        <div>
+          <span>3</span>
+          <strong>Release USDC</strong>
+          <p>Client reviews proof and approves settlement on Arc.</p>
+        </div>
+      </section>
+
+      {stats.error ? <InlineError message={stats.error.message} /> : null}
+      {agreementsRead.error ? <InlineError message={agreementsRead.error.message} /> : null}
+    </div>
+  );
+}
+
+function OverviewMetric({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
+  return (
+    <div className="overview-metric">
+      <span>{label}</span>
+      {loading ? <div className="skeleton metric-skeleton" /> : <strong>{value}</strong>}
+    </div>
   );
 }
 
@@ -238,20 +476,13 @@ function Dashboard() {
   return (
     <div className="dashboard-grid">
       <section className="hero-panel">
-        <div className="eyebrow">Programmable payment guarantee layer</div>
-        <h1>USDC agreements that release when work is proven.</h1>
-        <p>Define the work. Hold the payment. Submit proof. Release on approval.</p>
-        <p className="muted-copy">
-          AI-assisted review helps evaluate proof, but the client controls final approval.
-        </p>
+        <div className="eyebrow">Handsel dashboard</div>
+        <h1>Deals</h1>
+        <p>Hold USDC. Get proof. Release on approval.</p>
         <div className="hero-actions">
           <a className="primary-link" href="#/create">
             <Plus size={18} weight="bold" />
             Create agreement
-          </a>
-          <a className="secondary-link" href="#user-agreements">
-            View agreements
-            <ArrowRight size={18} weight="bold" />
           </a>
         </div>
       </section>
@@ -269,8 +500,8 @@ function Dashboard() {
           <Handshake size={24} weight="duotone" />
         </div>
         <div>
-          <h2>Agent Task Mode</h2>
-          <p>Built as an independent testnet MVP on Arc. Designed for freelance work, service deals, and future agent tasks.</p>
+          <h2>Agent task mode</h2>
+          <p>Future workflow for autonomous task settlement.</p>
         </div>
       </section>
 
@@ -332,7 +563,7 @@ function UserAgreements() {
   );
 
   if (!isConnected) {
-    return <EmptyState title="Connect a wallet" body="Client, beneficiary, and arbiter agreements will appear here." />;
+    return <EmptyState title="Connect a wallet" body="Your client and freelancer agreements will appear here." />;
   }
 
   if (userIdsRead.isLoading || agreementsRead.isLoading) return <AgreementListSkeleton />;
@@ -342,7 +573,7 @@ function UserAgreements() {
   }
 
   if (agreements.length === 0) {
-    return <EmptyState title="No agreements yet" body="Create a proof-based service agreement or connect a participant wallet." />;
+    return <EmptyState title="No agreements yet" body="Create the first deal, then come back here to track it." />;
   }
 
   return (
@@ -370,13 +601,13 @@ function CreateAgreementPage() {
   const { address, isConnected } = useAccount();
   const queryClient = useQueryClient();
   const { run, isPending, txState } = useTxRunner();
-  const [title, setTitle] = useState("Landing page implementation");
+  const [title, setTitle] = useState("Cafe booking page");
   const [beneficiary, setBeneficiary] = useState("");
   const [arbiter, setArbiter] = useState("");
   const [amount, setAmount] = useState("100");
   const [deadline, setDeadline] = useState(defaultDeadlineInput);
-  const [criteriaURI, setCriteriaURI] = useState("Responsive landing page with deployed URL, source PR, and basic QA notes.");
-  const [metadataURI, setMetadataURI] = useState("Proof-based service agreement for a small digital delivery.");
+  const [criteriaURI, setCriteriaURI] = useState("Live URL, source PR, mobile screenshots, and handoff notes.");
+  const [metadataURI, setMetadataURI] = useState("Booking page for a small cafe launch.");
   const parsedAmount = parseUsdcAmount(amount);
 
   const allowanceRead = useReadContract({
@@ -428,18 +659,15 @@ function CreateAgreementPage() {
         metadataURI.trim(),
       ],
     });
-    if (hash) window.location.hash = "#/";
+    if (hash) window.location.hash = "#/dashboard";
   }
 
   return (
     <div className="form-layout">
       <section className="form-copy">
         <span className="eyebrow">Create agreement</span>
-        <h1>Lock payment around clear work criteria.</h1>
-        <p>
-          Handsel creates a proof-based service agreement on Arc testnet. The beneficiary submits proof before the
-          client releases USDC.
-        </p>
+        <h1>Create a deal.</h1>
+        <p>Set recipient, amount, deadline, and proof.</p>
         <div className="balance-strip">
           <span>Wallet balance</span>
           <strong>{formatUsdc(balance)}</strong>
@@ -447,27 +675,27 @@ function CreateAgreementPage() {
       </section>
 
       <section className="form-panel">
-        <Field label="Agreement title" helper="A concise work label for dashboard and receipts.">
+        <Field label="Title">
           <input value={title} onChange={(event) => setTitle(event.target.value)} />
         </Field>
-        <Field label="Beneficiary address" helper="Freelancer or service wallet that can submit proof and receive release.">
+        <Field label="Freelancer wallet">
           <input value={beneficiary} onChange={(event) => setBeneficiary(event.target.value)} placeholder="0x..." />
         </Field>
-        <Field label="Arbiter address" helper="Fallback resolver wallet for disputed agreements.">
+        <Field label="Arbiter wallet">
           <input value={arbiter} onChange={(event) => setArbiter(event.target.value)} placeholder="0x..." />
         </Field>
         <div className="form-grid">
-          <Field label="Amount" helper="USDC amount, using 6 decimals.">
+          <Field label="Amount">
             <input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
           </Field>
-          <Field label="Deadline" helper="Refunds open after this time if the agreement is still created or active.">
+          <Field label="Deadline">
             <input type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
           </Field>
         </div>
-        <Field label="Acceptance criteria" helper="Plain text, hash, or URI describing what proof should show.">
+        <Field label="Proof required">
           <textarea value={criteriaURI} onChange={(event) => setCriteriaURI(event.target.value)} rows={4} />
         </Field>
-        <Field label="Description or metadata URI" helper="Optional context for the agreement and public receipt.">
+        <Field label="Notes">
           <textarea value={metadataURI} onChange={(event) => setMetadataURI(event.target.value)} rows={3} />
         </Field>
 
@@ -565,7 +793,7 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
   return (
     <div className="detail-layout">
       <section className="detail-main">
-        <a className="back-link" href="#/">
+        <a className="back-link" href="#/dashboard">
           <ArrowRight size={16} weight="bold" />
           Dashboard
         </a>
@@ -649,10 +877,10 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
               <Brain size={18} weight="duotone" />
               <div>
                 <strong>{validation ? validation.recommendation.replace("_", " ") : "Not reviewed"}</strong>
-                <p>{validation?.summary ?? "Run local MVP review before final client approval."}</p>
+                <p>{validation?.summary ?? "Run local review before final client approval."}</p>
               </div>
             </div>
-            <p className="review-note">AI-assisted review is a local MVP recommendation. Client approval controls release.</p>
+            <p className="review-note">AI-assisted review is a local recommendation. Client approval controls release.</p>
             {isClient ? (
               <>
                 <ActionButton icon={<Brain size={18} weight="duotone" />} disabled={isPending} onClick={runReview}>
@@ -798,7 +1026,7 @@ function ReceiptPage({ agreementId }: { agreementId: bigint }) {
         <strong>{formatUsdc(agreement.amount)}</strong>
       </div>
       <p className="muted-copy">
-        Public status view for a proof-based service agreement. This testnet receipt is a product record, not a legal
+        Public status view for a proof-based service agreement. This receipt is a product record, not a legal
         settlement document.
       </p>
       <div className="receipt-grid">
