@@ -1,0 +1,17 @@
+{
+  "name": "Handsel",
+  "short_name": "Handsel",
+  "description": "Proof-based settlement for real work.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f2ec",
+  "theme_color": "#f5f2ec",
+  "icons": [
+    {
+      "src": "/handsel-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -6,9 +6,11 @@ The name comes from an old trade/legal term for a first installment or earnest m
 
 Tagline: **Proof-based settlement for real work.**
 
-Handsel is an independent testnet MVP built on Arc. It uses Circle's arc-escrow sample as technical inspiration, but is not affiliated with or endorsed by Circle.
+Website: **https://www.archandsel.xyz/**
 
-Handsel is not a regulated escrow service or legal substitute. It is open-source software for Arc testnet experimentation and grant evaluation.
+Handsel is an independent grant demo built on Arc technology. It uses Circle's arc-escrow sample as technical inspiration, but is not affiliated with or endorsed by Circle.
+
+Handsel is not a regulated escrow service or legal substitute. It is open-source software for Arc experimentation and grant evaluation.
 
 ## Why Arc and USDC
 
@@ -84,7 +86,7 @@ HANDSEL_CONTRACT_ADDRESS=
 Future Phase 2 variables:
 
 ```bash
-NEXT_PUBLIC_APP_URL=
+NEXT_PUBLIC_APP_URL=https://www.archandsel.xyz
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
