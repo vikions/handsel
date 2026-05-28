@@ -404,7 +404,7 @@ function OverviewPage() {
 
       <section className="overview-number-grid" aria-label="Protocol overview metrics">
         <OverviewMetric label="Agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
-        <OverviewMetric label="USDC volume" value={formatUsdc(totalVolume)} loading={stats.isLoading} />
+        <OverviewMetric label="USDC volume" value={formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
         <OverviewMetric label="Clients" value={uniqueClients.toString()} loading={agreementsRead.isLoading} />
         <OverviewMetric label="Freelancers" value={uniqueFreelancers.toString()} loading={agreementsRead.isLoading} />
       </section>
@@ -489,7 +489,7 @@ function Dashboard() {
 
       <section className="stats-panel" aria-label="Protocol stats">
         <Metric label="Total agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
-        <Metric label="Total volume" value={formatUsdc(totalVolume)} loading={stats.isLoading} />
+        <Metric label="Total volume" value={formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
         <Metric label="Completed" value={completed.toString()} loading={stats.isLoading} />
         <Metric label="Disputed" value={disputed.toString()} loading={stats.isLoading} />
         {stats.error ? <InlineError message={stats.error.message} /> : null}
@@ -1261,6 +1261,13 @@ function formatUsdc(amount: bigint) {
   const normalizedWhole = Number(whole).toLocaleString("en-US");
   const normalizedFraction = fraction.replace(/0+$/, "").slice(0, 6);
   return `${normalizedWhole}${normalizedFraction ? `.${normalizedFraction}` : ""} USDC`;
+}
+
+function formatCompactUsdc(amount: bigint) {
+  const unit = 10n ** BigInt(usdcDecimals);
+  const whole = amount / unit;
+  if (whole === 0n && amount > 0n) return "<1";
+  return whole.toLocaleString("en-US");
 }
 
 function formatAddress(address: Address | string) {
