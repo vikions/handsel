@@ -6,21 +6,38 @@ The name comes from an old trade/legal term for a first installment or earnest m
 
 Tagline: **Proof-based settlement for real work.**
 
-Website: **https://www.archandsel.xyz/**
+Live app: **https://www.archandsel.xyz/**
 
-Handsel is an independent grant demo built on Arc technology. It uses Circle's arc-escrow sample as technical inspiration, but is not affiliated with or endorsed by Circle.
+Handsel is already deployed on Arc testnet with a working public app, a live smart contract, and end-to-end USDC agreement flows. It uses Circle's arc-escrow sample as technical inspiration, but is not affiliated with or endorsed by Circle.
 
 Handsel is not a regulated escrow service or legal substitute. It is open-source software for Arc experimentation and grant evaluation.
 
 ## Why Arc and USDC
 
-Arc is EVM-compatible and designed for USDC-denominated activity. Handsel uses ERC20 USDC as the settlement asset and presents amounts in USDC terms, which keeps the MVP focused on real payment workflows instead of custom token mechanics.
+Arc is EVM-compatible and designed for USDC-denominated activity. Handsel uses ERC20 USDC as the settlement asset and presents amounts in USDC terms, which keeps the product focused on real payment workflows instead of custom token mechanics.
+
+Arc is not a future integration for Handsel. It is the settlement layer Handsel is already built on.
+
+## Live Arc Testnet Deployment
+
+- Live app: **https://www.archandsel.xyz/**
+- Network: **Arc Testnet**
+- Chain ID: **5042002**
+- RPC: **https://rpc.testnet.arc.network**
+- Explorer: **https://testnet.arcscan.app**
+- Handsel contract: **0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867**
+- USDC contract: **0x3600000000000000000000000000000000000000**
+
+Explorer links:
+
+- Handsel contract: <https://testnet.arcscan.app/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867>
+- USDC contract: <https://testnet.arcscan.app/address/0x3600000000000000000000000000000000000000>
 
 ## Circle Reference
 
-Circle's arc-escrow repository demonstrates a sample escrow workflow on Arc testnet. Handsel builds a differentiated product layer around proof-based freelance and service payments: structured work criteria, proof submission, AI-assisted review, explicit client approval, dispute fallback, public receipts, and future agent-task settlement.
+Circle's arc-escrow repository demonstrates a sample escrow workflow on Arc testnet. Handsel builds a differentiated product layer around proof-based freelance and service payments: structured work criteria, proof submission, AI-assisted review, explicit client approval, dispute fallback, public receipts, and agent-tested settlement flows.
 
-The Circle sample guides the Phase 2 architecture direction: server-side API routes, Supabase product state, Circle Developer Controlled Wallets, OpenAI validation, webhooks, transaction records, and timeline updates. This repository does not copy Circle's UI, branding, embedded bytecode, or large source blocks.
+The Circle sample helps guide future Circle developer platform integrations: Circle Wallets / Programmable Wallets, gas sponsorship where supported, server-side transaction records, webhooks, and AI-assisted validation. This repository does not copy Circle's UI, branding, embedded bytecode, or large source blocks.
 
 ## Current Architecture
 
@@ -34,7 +51,7 @@ The Circle sample guides the Phase 2 architecture direction: server-side API rou
 - `frontend/src/lib/timeline.ts`: timeline view-model helper.
 - `frontend/src/lib/receipts.ts`: public receipt view-model helper.
 
-Phase 1 intentionally keeps Vite and direct wallet transactions so the MVP remains working. Arc RPC URLs, private keys, Supabase, Circle, and OpenAI are not required for Phase 1 code implementation or local compile/build verification.
+The current product intentionally keeps Vite and direct wallet transactions so the live Arc testnet app remains simple, auditable, and easy to verify. Circle Wallets, gas sponsorship, Supabase persistence, and OpenAI-backed validation are planned product layers on top of the current onchain escrow flow.
 
 ## Smart Contract Flow
 
@@ -53,37 +70,39 @@ The contract has no admin withdrawal function, no owner custody path, and no upg
 
 ## Frontend Flow
 
-- Dashboard shows total agreements, total USDC volume, completed count, disputed count, wallet agreements, and an Agent Task Mode preview.
+- Overview shows live contract reads for total agreements, total USDC volume, clients, freelancers, completed count, disputed count, and recent onchain agreements.
+- Dashboard shows wallet-specific agreements and user actions.
 - Create Agreement captures title, beneficiary, arbiter, USDC amount, deadline, acceptance criteria, and description or metadata URI.
 - Agreement Detail shows parties, criteria, proof, timeline, AI-assisted local review, and role-aware actions.
 - Submit Proof lets the beneficiary provide a URL or delivery note.
 - Review Proof lets the client run a deterministic local recommendation before approving release.
 - Public Receipt shows agreement status, parties, criteria, proof, amount, and review recommendation.
+- Landing page includes example agreement requests to communicate real-world use cases for small USDC service tasks.
 
 ## Environment Variables
 
-Phase 1 frontend placeholders:
+Live frontend variables:
 
 ```bash
-VITE_ARC_TESTNET_RPC_URL=
-VITE_ARC_TESTNET_CHAIN_ID=
-VITE_USDC_ADDRESS=
-VITE_HANDSEL_CONTRACT_ADDRESS=
+VITE_ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+VITE_ARC_TESTNET_CHAIN_ID=5042002
+VITE_USDC_ADDRESS=0x3600000000000000000000000000000000000000
+VITE_HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
 ```
 
-These can stay blank until a local or testnet deployment is available. The app still compiles without real credentials.
+The app still compiles without real credentials, but live contract reads and writes require the Arc testnet values above.
 
-Future Phase 3 deployment variables:
+Deployment variables:
 
 ```bash
-ARC_TESTNET_RPC_URL=
-ARC_TESTNET_CHAIN_ID=
+ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+ARC_TESTNET_CHAIN_ID=5042002
 PRIVATE_KEY=
-USDC_ADDRESS=
-HANDSEL_CONTRACT_ADDRESS=
+USDC_ADDRESS=0x3600000000000000000000000000000000000000
+HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
 ```
 
-Future Phase 2 variables:
+Planned Circle / AI integration variables:
 
 ```bash
 NEXT_PUBLIC_APP_URL=https://www.archandsel.xyz
@@ -97,8 +116,8 @@ CIRCLE_BLOCKCHAIN=ARC-TESTNET
 
 OPENAI_API_KEY=
 
-NEXT_PUBLIC_USDC_CONTRACT_ADDRESS=
-NEXT_PUBLIC_HANDSEL_CONTRACT_ADDRESS=
+NEXT_PUBLIC_USDC_CONTRACT_ADDRESS=0x3600000000000000000000000000000000000000
+NEXT_PUBLIC_HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
 ```
 
 ## Local Setup
@@ -133,9 +152,9 @@ Run the local browser app:
 pnpm dev
 ```
 
-## Pre-Deployment Checklist
+## Deployment and Smoke Test
 
-Before deploying to Arc testnet, verify locally:
+Before changing the live deployment, verify locally:
 
 ```bash
 pnpm --filter @handsel/contracts test
@@ -143,30 +162,30 @@ pnpm --filter @handsel/frontend build
 pnpm build
 ```
 
-For a later Arc testnet deployment, set these values in a local `.env` file only:
+For contract deployment or redeployment, set these values in a local `.env` file only:
 
 ```bash
-ARC_TESTNET_RPC_URL=
-ARC_TESTNET_CHAIN_ID=
+ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+ARC_TESTNET_CHAIN_ID=5042002
 PRIVATE_KEY=
-USDC_ADDRESS=
+USDC_ADDRESS=0x3600000000000000000000000000000000000000
 ```
 
 Do not commit private keys or real wallet credentials. The deployment script also checks that `ARC_TESTNET_RPC_URL`, `ARC_TESTNET_CHAIN_ID`, and `USDC_ADDRESS` are present before it can deploy.
 
-When ready to deploy later:
+Deploy or redeploy the contract:
 
 ```bash
 pnpm --filter @handsel/contracts deploy:arc
 ```
 
-After deployment, set the frontend environment to the deployed contract and USDC addresses:
+After deployment, set the frontend environment to the deployed contract and USDC addresses. The current Arc testnet deployment uses:
 
 ```bash
-VITE_ARC_TESTNET_RPC_URL=
-VITE_ARC_TESTNET_CHAIN_ID=
-VITE_USDC_ADDRESS=
-VITE_HANDSEL_CONTRACT_ADDRESS=
+VITE_ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+VITE_ARC_TESTNET_CHAIN_ID=5042002
+VITE_USDC_ADDRESS=0x3600000000000000000000000000000000000000
+VITE_HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
 ```
 
 Then run the local browser smoke test:
@@ -186,13 +205,15 @@ Recommended browser flow:
 
 ## Grant Alignment
 
-Handsel demonstrates real-world economic activity on Arc testnet: structured service agreements, USDC commitment, proof submission, AI-assisted review, human approval, fallback dispute/refund flow, and public settlement receipts.
+Handsel demonstrates real-world economic activity on Arc testnet: structured service agreements, USDC commitment, proof submission, AI-assisted review, human approval, fallback dispute/refund flow, public settlement receipts, and verifiable contract activity on Arcscan.
 
 ## Roadmap
 
-- Phase 1: Code-complete testnet MVP scaffold with Hardhat contracts, Vite frontend, local proof review, and receipt UI.
-- Phase 2: Next.js API routes, Supabase persistence, Circle Developer Controlled Wallets, Circle webhooks, OpenAI proof validation, and persistent public receipts.
-- Phase 3: Arc testnet deployment, real transaction demo, and SDK/API paths for marketplaces and AI-agent task settlement.
+- Current: Live Arc testnet deployment with a public app, deployed Handsel contract, USDC agreement creation, proof submission, client release, dispute resolution, public receipts, and onchain verification.
+- Next: Production hardening for contract tests, frontend states, transaction visibility, receipts, error handling, and agreement lifecycle UX.
+- AI-assisted review: Expand the local proof review seam into a stronger AI-assisted recommendation layer that compares criteria and submitted proof while keeping final settlement decisions in human hands.
+- Circle developer platform: Research and integrate Circle Wallets / Programmable Wallets to reduce onboarding friction, plus Circle Gas Station where supported for sponsored transaction fees.
+- Product expansion: Agreement templates, analytics, dispute workflow improvements, marketplace/API paths, and user onboarding for freelancers, agencies, creators, and small businesses.
 
 ## Security and Compliance Notes
 
