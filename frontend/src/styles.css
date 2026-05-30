@@ -476,6 +476,57 @@ p {
   backdrop-filter: blur(16px);
 }
 
+.landing-task-ticker {
+  position: absolute;
+  right: 0;
+  bottom: 22px;
+  left: 0;
+  z-index: 3;
+  overflow: hidden;
+  padding: 10px 0;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent 0, #000 9%, #000 91%, transparent 100%);
+}
+
+.landing-task-track {
+  display: flex;
+  width: max-content;
+  animation: task-ticker-scroll 82s linear infinite;
+  will-change: transform;
+}
+
+.landing-task-group {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  padding-right: 10px;
+}
+
+.landing-task-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid rgba(36, 38, 32, 0.11);
+  border-radius: 999px;
+  background: rgba(255, 255, 252, 0.68);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 16px 42px rgba(59, 54, 43, 0.08);
+  color: #4f514a;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  backdrop-filter: blur(14px);
+}
+
+.landing-task-pill strong {
+  color: #607f6f;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
 .landing-nav-cta:hover,
 .landing-primary:hover,
 .landing-secondary:hover {
@@ -1586,6 +1637,16 @@ textarea:focus {
   }
 }
 
+@keyframes task-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @keyframes surface-drift {
   from {
     transform: translate3d(-8px, 0, 0);
@@ -1639,7 +1700,7 @@ textarea:focus {
 
   .landing-hero {
     min-height: calc(100dvh - 90px);
-    padding-bottom: 116px;
+    padding-bottom: 142px;
   }
 
   .landing-hero h1 {
@@ -1650,6 +1711,14 @@ textarea:focus {
   .landing-copy {
     max-width: 560px;
     font-size: 17px;
+  }
+
+  .landing-task-ticker {
+    bottom: 16px;
+  }
+
+  .landing-task-track {
+    animation-duration: 74s;
   }
 
   .proof-surface {
@@ -1747,7 +1816,7 @@ textarea:focus {
 
   .landing-hero {
     min-height: calc(100dvh - 76px);
-    padding: 0 18px 94px;
+    padding: 0 18px 128px;
   }
 
   .landing-kicker {
@@ -1771,6 +1840,23 @@ textarea:focus {
   .landing-primary,
   .landing-secondary {
     width: min(100%, 320px);
+  }
+
+  .landing-task-ticker {
+    bottom: 10px;
+    mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+  }
+
+  .landing-task-group {
+    gap: 8px;
+    padding-right: 8px;
+  }
+
+  .landing-task-pill {
+    min-height: 38px;
+    gap: 10px;
+    padding: 0 12px;
+    font-size: 12px;
   }
 
   .landing-surface-layer {

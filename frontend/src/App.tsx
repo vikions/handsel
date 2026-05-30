@@ -74,6 +74,29 @@ const disputeResolutionPresets = [
 
 const OVERVIEW_AGREEMENT_READ_LIMIT = 500;
 
+const landingTaskTickerItems = [
+  { title: "Landing page for a night club", amount: "4.00" },
+  { title: "Cafe booking page", amount: "4.00" },
+  { title: "Creator link-in-bio setup", amount: "2.50" },
+  { title: "Local gym promo page", amount: "5.00" },
+  { title: "Restaurant menu cleanup", amount: "3.20" },
+  { title: "Event flyer mobile page", amount: "3.75" },
+  { title: "Podcast cover refresh", amount: "2.80" },
+  { title: "Small agency case study", amount: "4.60" },
+  { title: "Tattoo studio gallery fix", amount: "3.50" },
+  { title: "Barbershop hours update", amount: "2.25" },
+  { title: "Boutique product banner", amount: "3.90" },
+  { title: "DJ press kit page", amount: "4.40" },
+  { title: "Yoga coach signup form", amount: "3.30" },
+  { title: "Food truck launch page", amount: "5.50" },
+  { title: "Real estate lead form", amount: "4.80" },
+  { title: "Streamer sponsor panel", amount: "2.70" },
+  { title: "Photography mini portfolio", amount: "5.20" },
+  { title: "Newsletter template polish", amount: "2.90" },
+  { title: "Discord community rules page", amount: "3.10" },
+  { title: "Indie game teaser site", amount: "5.75" },
+] as const;
+
 type Route =
   | { page: "landing" }
   | { page: "overview" }
@@ -216,7 +239,27 @@ function LandingPage() {
           </a>
         </div>
       </main>
+      <LandingTaskTicker />
     </div>
+  );
+}
+
+function LandingTaskTicker() {
+  return (
+    <aside className="landing-task-ticker" aria-label="Example agreement requests">
+      <div className="landing-task-track">
+        {[0, 1].map((group) => (
+          <div className="landing-task-group" aria-hidden={group === 1} key={group}>
+            {landingTaskTickerItems.map((item) => (
+              <span className="landing-task-pill" key={`${group}-${item.title}`}>
+                <span>{item.title}</span>
+                <strong>{item.amount} USDC</strong>
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </aside>
   );
 }
 
