@@ -49,6 +49,29 @@ const statusLabels = [
   "Cancelled",
 ] as const;
 
+const disputeResolutionPresets = [
+  {
+    label: "Full payment to worker",
+    detail: "Work accepted, release 100% to beneficiary.",
+    clientBps: 0,
+  },
+  {
+    label: "Mostly completed",
+    detail: "Worker receives 75%, client receives 25%.",
+    clientBps: 2500,
+  },
+  {
+    label: "Half completed",
+    detail: "Split escrow 50/50 between both sides.",
+    clientBps: 5000,
+  },
+  {
+    label: "Refund client",
+    detail: "Work rejected, return 100% to client.",
+    clientBps: 10_000,
+  },
+] as const;
+
 type Route =
   | { page: "landing" }
   | { page: "overview" }
@@ -743,7 +766,6 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
   const { address, isConnected } = useAccount();
   const { run, isPending, txState } = useTxRunner();
   const [proofURI, setProofURI] = useState(agreement.proofURI);
-  const [clientBps, setClientBps] = useState("5000");
   const [validation, setValidation] = useState<ValidationResult | null>(() => loadValidationResult(agreement.id));
 
   useEffect(() => {
@@ -751,7 +773,6 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
     setValidation(loadValidationResult(agreement.id));
   }, [agreement.id, agreement.proofURI]);
 
-  const beneficiaryBps = 10_000 - Number(clientBps || 0);
   const connected = (address ?? "").toLowerCase();
   const isClient = connected === agreement.client.toLowerCase();
   const isBeneficiary = connected === agreement.beneficiary.toLowerCase();
@@ -784,10 +805,13 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
     setValidation(result);
   }
 
-  async function resolveDispute() {
-    const clientShare = Number(clientBps);
-    if (!Number.isInteger(clientShare) || clientShare < 0 || clientShare > 10_000 || beneficiaryBps < 0) return;
-    await callAgreement("Resolving dispute", "resolveDispute", [agreement.id, clientShare, beneficiaryBps]);
+  function formatSplitAmount(bps: number) {
+    return formatUsdc((agreement.amount * BigInt(bps)) / 10_000n);
+  }
+
+  async function resolveDispute(clientShareBps: number) {
+    const beneficiaryShareBps = 10_000 - clientShareBps;
+    await callAgreement("Resolving dispute", "resolveDispute", [agreement.id, clientShareBps, beneficiaryShareBps]);
   }
 
   return (
@@ -924,12 +948,33 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
 
         {agreement.status === 4 && isArbiter ? (
           <div className="resolve-panel">
-            <Field label="Client bps" helper={`Beneficiary receives ${beneficiaryBps.toLocaleString()} bps.`}>
-              <input value={clientBps} inputMode="numeric" onChange={(event) => setClientBps(event.target.value)} />
-            </Field>
-            <ActionButton icon={<Scales size={18} weight="duotone" />} disabled={isPending || beneficiaryBps < 0} onClick={resolveDispute}>
-              Resolve dispute
-            </ActionButton>
+            <div className="resolve-summary">
+              <Scales size={18} weight="duotone" />
+              <div>
+                <strong>Resolve escrow split</strong>
+                <p>Choose how the locked {formatUsdc(agreement.amount)} should be distributed.</p>
+              </div>
+            </div>
+            <div className="resolution-grid">
+              {disputeResolutionPresets.map((preset) => {
+                const workerBps = 10_000 - preset.clientBps;
+                return (
+                  <button
+                    className="resolution-option"
+                    disabled={isPending}
+                    key={preset.label}
+                    onClick={() => resolveDispute(preset.clientBps)}
+                    type="button"
+                  >
+                    <strong>{preset.label}</strong>
+                    <span>{preset.detail}</span>
+                    <small>
+                      Worker: {formatSplitAmount(workerBps)} · Client: {formatSplitAmount(preset.clientBps)}
+                    </small>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ) : null}
 
