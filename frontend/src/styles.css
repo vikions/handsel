@@ -1320,6 +1320,30 @@ textarea:focus {
   margin-bottom: 10px;
 }
 
+.settled-note {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid rgba(96, 127, 111, 0.24);
+  border-radius: 3px;
+  background: rgba(96, 127, 111, 0.07);
+  color: #496b5b;
+}
+
+.settled-note strong {
+  display: block;
+  color: #2f332d;
+}
+
+.settled-note p {
+  margin: 4px 0 0;
+  color: #74766e;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .resolve-panel {
   margin-top: 12px;
   padding-top: 16px;

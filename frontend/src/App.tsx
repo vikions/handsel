@@ -877,6 +877,15 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
           </div>
         </div>
         {!isConnected ? <InlineError message="Connect a wallet to perform agreement actions." /> : null}
+        {isSettled ? (
+          <div className="settled-note">
+            <CheckCircle size={18} weight="duotone" />
+            <div>
+              <strong>Agreement settled</strong>
+              <p>Funds have been distributed. No further client, worker, or arbiter action is available.</p>
+            </div>
+          </div>
+        ) : null}
 
         {agreement.status === 0 && isBeneficiary ? (
           <ActionButton icon={<CheckCircle size={18} weight="duotone" />} disabled={isPending} onClick={() => callAgreement("Accepting agreement", "acceptAgreement", [agreement.id])}>
