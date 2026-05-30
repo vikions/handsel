@@ -72,6 +72,8 @@ const disputeResolutionPresets = [
   },
 ] as const;
 
+const OVERVIEW_AGREEMENT_READ_LIMIT = 500;
+
 type Route =
   | { page: "landing" }
   | { page: "overview" }
@@ -392,8 +394,15 @@ function OverviewPage() {
   const totalVolume = readBigInt(stats.data, 1);
   const completed = readBigInt(stats.data, 2);
   const disputed = readBigInt(stats.data, 3);
-  const sampleSize = Number(totalAgreements > 80n ? 80n : totalAgreements);
-  const overviewIds = useMemo(() => Array.from({ length: sampleSize }, (_, index) => BigInt(index)), [sampleSize]);
+  const sampleSize = Number(
+    totalAgreements > BigInt(OVERVIEW_AGREEMENT_READ_LIMIT)
+      ? BigInt(OVERVIEW_AGREEMENT_READ_LIMIT)
+      : totalAgreements,
+  );
+  const overviewIds = useMemo(
+    () => Array.from({ length: sampleSize }, (_, index) => totalAgreements - 1n - BigInt(index)),
+    [sampleSize, totalAgreements],
+  );
 
   const agreementsRead = useReadContracts({
     contracts: overviewIds.map((id) => ({
