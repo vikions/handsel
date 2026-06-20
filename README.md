@@ -21,6 +21,7 @@ Arc is not a future integration for Handsel. It is the settlement layer Handsel 
 ## Live Arc Testnet Deployment
 
 - Live app: **https://www.archandsel.xyz/**
+- Public analytics dashboard: **https://www.archandsel.xyz/#/analytics**
 - Network: **Arc Testnet**
 - Chain ID: **5042002**
 - RPC: **https://rpc.testnet.arc.network**

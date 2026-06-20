@@ -99,7 +99,7 @@ const landingTaskTickerItems = [
 
 type Route =
   | { page: "landing" }
-  | { page: "overview" }
+  | { page: "analytics" }
   | { page: "dashboard" }
   | { page: "create" }
   | { page: "detail"; agreementId: bigint }
@@ -160,7 +160,7 @@ export function App() {
       <Header route={route} />
       <main className="page-frame">
         <ConfigWarning />
-        {route.page === "overview" ? <OverviewPage /> : null}
+        {route.page === "analytics" ? <AnalyticsPage /> : null}
         {route.page === "dashboard" ? <Dashboard /> : null}
         {route.page === "create" ? <CreateAgreementPage /> : null}
         {route.page === "detail" ? <AgreementDetailPage agreementId={route.agreementId} /> : null}
@@ -181,7 +181,7 @@ function useHashRoute(): Route {
 
   const normalized = hash.replace(/^#/, "") || "/";
   if (normalized === "/") return { page: "landing" };
-  if (normalized === "/overview") return { page: "overview" };
+  if (normalized === "/analytics" || normalized === "/overview") return { page: "analytics" };
   if (normalized === "/dashboard") return { page: "dashboard" };
   if (normalized === "/create") return { page: "create" };
   if (normalized.startsWith("/agreements/")) {
@@ -215,7 +215,7 @@ function LandingPage() {
         </a>
         <nav className="landing-menu" aria-label="Landing navigation">
           <a href="#/">Home</a>
-          <a href="#/overview">Overview</a>
+          <a href="#/analytics">Analytics</a>
           <a href="#/dashboard">Dashboard</a>
           <a href="#/create">Create</a>
         </nav>
@@ -231,8 +231,8 @@ function LandingPage() {
         </h1>
         <p className="landing-copy">Define the work. Hold the payment. Submit proof. Release on approval.</p>
         <div className="landing-actions">
-          <a className="landing-primary" href="#/overview">
-            View Overview
+          <a className="landing-primary" href="#/analytics">
+            View Analytics
           </a>
           <a className="landing-secondary" href="#/create">
             Create Agreement
@@ -367,8 +367,8 @@ function Header({ route }: { route: Route }) {
         <a className={route.page === "dashboard" ? "active" : ""} href="#/dashboard">
           Dashboard
         </a>
-        <a className={route.page === "overview" ? "active" : ""} href="#/overview">
-          Overview
+        <a className={route.page === "analytics" ? "active" : ""} href="#/analytics">
+          Analytics
         </a>
         <a className={route.page === "create" ? "active" : ""} href="#/create">
           Create
@@ -422,7 +422,7 @@ function ConfigWarning() {
   );
 }
 
-function OverviewPage() {
+function AnalyticsPage() {
   const stats = useReadContracts({
     contracts: [
       { address: handselAddress, abi: handselAbi, functionName: "getAgreementCount" },
@@ -472,9 +472,9 @@ function OverviewPage() {
   return (
     <div className="overview-layout">
       <section className="overview-hero">
-        <span className="eyebrow">Protocol overview</span>
-        <h1>Real work moving through Handsel.</h1>
-        <p>Live contract reads for agreements, USDC volume, clients, freelancers, and settlement status.</p>
+        <span className="eyebrow">Public analytics</span>
+        <h1>Handsel activity on Arc.</h1>
+        <p>Public contract reads for agreements, USDC volume, clients, freelancers, and settlement status.</p>
       </section>
 
       <section className="overview-number-grid" aria-label="Protocol overview metrics">
