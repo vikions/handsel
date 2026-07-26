@@ -25,7 +25,7 @@ import {
   useReadContracts,
   useWriteContract,
 } from "wagmi";
-import { formatUnits, isAddress, parseAbiItem, parseUnits, zeroAddress, type Address, type Hash } from "viem";
+import { formatUnits, isAddress, parseUnits, zeroAddress, type Address, type Hash } from "viem";
 import { handselAddress, configIssues, contractsConfigured, usdcAddress, usdcDecimals } from "./lib/config";
 import { handselAbi, erc20Abi } from "./lib/abi";
 import {
@@ -70,12 +70,6 @@ const disputeResolutionPresets = [
     clientBps: 10_000,
   },
 ] as const;
-
-const OVERVIEW_AGREEMENT_READ_LIMIT = 120;
-
-const agreementCreatedEvent = parseAbiItem(
-  "event AgreementCreated(uint256 indexed agreementId,address indexed client,address indexed beneficiary,address arbiter,uint256 amount,uint256 deadline,string title,string criteriaURI,string metadataURI)",
-);
 
 const landingTaskTickerItems = [
   { title: "Landing page for a night club", amount: "4.00" },
@@ -131,12 +125,12 @@ type ReadRow = {
   error?: Error;
 };
 
-type EventAnalyticsState = {
+type AgreementAnalyticsState = {
   isLoading: boolean;
-  events: number;
-  totalVolume: bigint;
+  loaded: number;
   clients: number;
   freelancers: number;
+  inProgress: number;
   error?: string;
 };
 
@@ -412,10 +406,6 @@ function Header({ route }: { route: Route }) {
           </a>
         </nav>
         <div className="topbar-actions">
-          <a className="quick-create" href="#/create" aria-label="Create agreement">
-            <Plus size={16} weight="bold" />
-            <span>New agreement</span>
-          </a>
           <ConnectButton />
         </div>
       </div>
@@ -466,47 +456,33 @@ function ConfigWarning() {
   );
 }
 
-function useAgreementCreatedAnalytics(expectedAgreementCount: bigint): EventAnalyticsState {
+let agreementAnalyticsRequest:
+  | { count: number; promise: Promise<Omit<AgreementAnalyticsState, "isLoading">> }
+  | undefined;
+
+function useAgreementAnalytics(expectedAgreementCount: bigint): AgreementAnalyticsState {
   const publicClient = usePublicClient();
-  const [state, setState] = useState<EventAnalyticsState>({
+  const [state, setState] = useState<AgreementAnalyticsState>({
     isLoading: false,
-    events: 0,
-    totalVolume: 0n,
+    loaded: 0,
     clients: 0,
     freelancers: 0,
+    inProgress: 0,
   });
 
   useEffect(() => {
     if (!contractsConfigured || !publicClient || handselAddress === zeroAddress || expectedAgreementCount === 0n) {
-      setState({ isLoading: false, events: 0, totalVolume: 0n, clients: 0, freelancers: 0 });
+      setState({ isLoading: false, loaded: 0, clients: 0, freelancers: 0, inProgress: 0 });
       return;
     }
 
     let cancelled = false;
     setState((previous) => ({ ...previous, isLoading: true, error: undefined }));
 
-    loadAgreementCreatedLogs(publicClient, Number(expectedAgreementCount))
-      .then((logs) => {
+    loadAgreementAnalytics(publicClient, Number(expectedAgreementCount))
+      .then((analytics) => {
         if (cancelled) return;
-
-        const clients = new Set<string>();
-        const freelancers = new Set<string>();
-        let totalVolume = 0n;
-
-        for (const log of logs) {
-          const { amount, beneficiary, client } = log.args;
-          if (typeof client === "string") clients.add(client.toLowerCase());
-          if (typeof beneficiary === "string") freelancers.add(beneficiary.toLowerCase());
-          if (typeof amount === "bigint") totalVolume += amount;
-        }
-
-        setState({
-          isLoading: false,
-          events: logs.length,
-          totalVolume,
-          clients: clients.size,
-          freelancers: freelancers.size,
-        });
+        setState({ ...analytics, isLoading: false });
       })
       .catch((error) => {
         if (cancelled) return;
@@ -525,33 +501,66 @@ function useAgreementCreatedAnalytics(expectedAgreementCount: bigint): EventAnal
   return state;
 }
 
-async function loadAgreementCreatedLogs(
+function loadAgreementAnalytics(
   publicClient: NonNullable<ReturnType<typeof usePublicClient>>,
-  expectedCount: number,
-) {
-  const latestBlock = await publicClient.getBlockNumber();
-  const blockRange = 9_999n;
-  const maxChunks = 80;
-  const logs = [];
-  let toBlock = latestBlock;
-
-  for (let chunk = 0; chunk < maxChunks; chunk += 1) {
-    const fromBlock = toBlock > blockRange ? toBlock - blockRange : 0n;
-    const chunkLogs = await publicClient.getLogs({
-      address: handselAddress,
-      event: agreementCreatedEvent,
-      fromBlock,
-      toBlock,
-    });
-
-    logs.unshift(...chunkLogs);
-
-    if (expectedCount > 0 && logs.length >= expectedCount) break;
-    if (fromBlock === 0n) break;
-    toBlock = fromBlock - 1n;
+  agreementCount: number,
+): Promise<Omit<AgreementAnalyticsState, "isLoading">> {
+  if (agreementAnalyticsRequest?.count === agreementCount) {
+    return agreementAnalyticsRequest.promise;
   }
 
-  return logs;
+  const promise = (async () => {
+    const clients = new Set<string>();
+    const freelancers = new Set<string>();
+    let loaded = 0;
+    let inProgress = 0;
+    const batchSize = 50;
+
+    for (let offset = 0; offset < agreementCount; offset += batchSize) {
+      const size = Math.min(batchSize, agreementCount - offset);
+      const ids = Array.from({ length: size }, (_, index) => BigInt(offset + index));
+      const rows = await publicClient.multicall({
+        allowFailure: true,
+        batchSize: 0,
+        contracts: ids.map((id) => ({
+          address: handselAddress,
+          abi: handselAbi,
+          functionName: "getAgreement",
+          args: [id],
+        })),
+      });
+
+      rows.forEach((row, index) => {
+        if (row.status !== "success") return;
+        const agreement = normalizeAgreement(row.result, ids[index]);
+        if (!agreement) return;
+        clients.add(agreement.client.toLowerCase());
+        freelancers.add(agreement.beneficiary.toLowerCase());
+        if (agreement.status === 1 || agreement.status === 2) inProgress += 1;
+        loaded += 1;
+      });
+    }
+
+    if (loaded !== agreementCount) {
+      throw new Error(`Loaded ${loaded} of ${agreementCount} agreements. Retry the public analytics read.`);
+    }
+
+    return {
+      loaded,
+      clients: clients.size,
+      freelancers: freelancers.size,
+      inProgress,
+    };
+  })();
+
+  agreementAnalyticsRequest = { count: agreementCount, promise };
+  void promise.finally(() => {
+    if (agreementAnalyticsRequest?.promise === promise) {
+      agreementAnalyticsRequest = undefined;
+    }
+  });
+
+  return promise;
 }
 
 function AnalyticsPage() {
@@ -569,46 +578,7 @@ function AnalyticsPage() {
   const totalVolume = readBigInt(stats.data, 1);
   const completed = readBigInt(stats.data, 2);
   const disputed = readBigInt(stats.data, 3);
-  const eventAnalytics = useAgreementCreatedAnalytics(totalAgreements);
-  const sampleSize = Number(
-    totalAgreements > BigInt(OVERVIEW_AGREEMENT_READ_LIMIT)
-      ? BigInt(OVERVIEW_AGREEMENT_READ_LIMIT)
-      : totalAgreements,
-  );
-  const overviewIds = useMemo(
-    () => Array.from({ length: sampleSize }, (_, index) => totalAgreements - 1n - BigInt(index)),
-    [sampleSize, totalAgreements],
-  );
-
-  const agreementsRead = useReadContracts({
-    contracts: overviewIds.map((id) => ({
-      address: handselAddress,
-      abi: handselAbi,
-      functionName: "getAgreement",
-      args: [id],
-    })),
-    query: { enabled: contractsConfigured && overviewIds.length > 0 },
-  });
-
-  const agreements = useMemo(
-    () =>
-      (agreementsRead.data ?? [])
-        .map((row, index) => normalizeAgreement((row as ReadRow).result, overviewIds[index]))
-        .filter((agreement): agreement is AgreementRecord => Boolean(agreement)),
-    [agreementsRead.data, overviewIds],
-  );
-
-  const uniqueClients = new Set(agreements.map((agreement) => agreement.client.toLowerCase())).size;
-  const uniqueFreelancers = new Set(agreements.map((agreement) => agreement.beneficiary.toLowerCase())).size;
-  const inProgress = agreements.filter((agreement) => agreement.status === 1 || agreement.status === 2).length;
-  const displayedVolume = eventAnalytics.events > 0 ? eventAnalytics.totalVolume : totalVolume;
-  const displayedClients = eventAnalytics.events > 0 ? eventAnalytics.clients : uniqueClients;
-  const displayedFreelancers = eventAnalytics.events > 0 ? eventAnalytics.freelancers : uniqueFreelancers;
-  const peopleLoading =
-    (eventAnalytics.isLoading || agreementsRead.isLoading) && displayedClients === 0 && displayedFreelancers === 0;
-  const completeEventHistory =
-    totalAgreements > 0n && eventAnalytics.events >= Number(totalAgreements);
-  const sampledPeople = !completeEventHistory && totalAgreements > BigInt(agreements.length);
+  const agreementAnalytics = useAgreementAnalytics(totalAgreements);
 
   return (
     <div className="overview-layout">
@@ -620,16 +590,16 @@ function AnalyticsPage() {
 
       <section className="overview-number-grid" aria-label="Protocol overview metrics">
         <OverviewMetric label="Agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
-        <OverviewMetric label="USDC volume" value={formatCompactUsdc(displayedVolume)} loading={stats.isLoading} />
+        <OverviewMetric label="USDC volume" value={formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
         <OverviewMetric
-          label={sampledPeople ? "Clients observed" : "Clients"}
-          value={sampledPeople ? `${displayedClients}+` : displayedClients.toString()}
-          loading={peopleLoading}
+          label="Clients"
+          value={agreementAnalytics.clients.toString()}
+          loading={agreementAnalytics.isLoading}
         />
         <OverviewMetric
-          label={sampledPeople ? "Freelancers observed" : "Freelancers"}
-          value={sampledPeople ? `${displayedFreelancers}+` : displayedFreelancers.toString()}
-          loading={peopleLoading}
+          label="Freelancers"
+          value={agreementAnalytics.freelancers.toString()}
+          loading={agreementAnalytics.isLoading}
         />
       </section>
 
@@ -640,7 +610,7 @@ function AnalyticsPage() {
         </div>
         <div className="overview-status">
           <span>In progress</span>
-          <strong>{inProgress.toString()}</strong>
+          <strong>{agreementAnalytics.inProgress.toString()}</strong>
         </div>
         <div className="overview-status">
           <span>Disputed</span>
@@ -666,14 +636,8 @@ function AnalyticsPage() {
         </div>
       </section>
 
-      {sampledPeople ? (
-        <p className="overview-data-note">
-          Unique wallet counts currently reflect {agreements.length} of {totalAgreements.toString()} agreements while
-          event history loads.
-        </p>
-      ) : null}
       {stats.error ? <InlineError message={stats.error.message} /> : null}
-      {agreementsRead.error ? <InlineError message={agreementsRead.error.message} /> : null}
+      {agreementAnalytics.error ? <InlineError message={agreementAnalytics.error} /> : null}
     </div>
   );
 }
@@ -707,7 +671,10 @@ function Dashboard() {
     <div className="dashboard-page">
       <section className="page-heading">
         <div>
-          <span className="page-kicker">Workspace</span>
+          <span className="page-kicker live-kicker">
+            <span className="live-dot" />
+            Live on Arc
+          </span>
           <h1>Work agreements</h1>
           <p>One place for committed funds, submitted proof, and settlement.</p>
         </div>
@@ -731,10 +698,6 @@ function Dashboard() {
             <h2>Wallet agreements</h2>
             <p>Agreements where this wallet is client, freelancer, or arbiter.</p>
           </div>
-          <a className="text-link" href="#/create">
-            Create new
-            <ArrowRight size={16} weight="bold" />
-          </a>
         </div>
         <UserAgreements />
       </section>

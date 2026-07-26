@@ -1,6 +1,6 @@
-import { createConfig, http } from "wagmi";
+import { createConfig } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { defineChain, isAddress, zeroAddress } from "viem";
+import { defineChain, fallback, http, isAddress, zeroAddress } from "viem";
 
 const rawChainId = import.meta.env.VITE_ARC_TESTNET_CHAIN_ID;
 const parsedChainId = Number(rawChainId);
@@ -8,6 +8,9 @@ const parsedChainId = Number(rawChainId);
 export const arcChainId =
   Number.isSafeInteger(parsedChainId) && parsedChainId > 0 ? parsedChainId : 31337;
 export const arcRpcUrl = import.meta.env.VITE_ARC_TESTNET_RPC_URL || "http://127.0.0.1:8545";
+export const arcFallbackRpcUrl =
+  import.meta.env.VITE_ARC_FALLBACK_RPC_URL || "https://rpc.blockdaemon.testnet.arc.network";
+const arcRpcUrls = [...new Set([arcFallbackRpcUrl, arcRpcUrl])];
 
 function envAddress(value: string | undefined): `0x${string}` {
   return value && isAddress(value) ? value : zeroAddress;
@@ -37,7 +40,12 @@ export const arcTestnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: [arcRpcUrl],
+      http: arcRpcUrls,
+    },
+  },
+  contracts: {
+    multicall3: {
+      address: "0xcA11bde05977b3631167028862bE2a173976CA11",
     },
   },
 });
@@ -46,6 +54,6 @@ export const wagmiConfig = createConfig({
   chains: [arcTestnet],
   connectors: [injected({ shimDisconnect: true })],
   transports: {
-    [arcTestnet.id]: http(arcRpcUrl),
+    [arcTestnet.id]: fallback(arcRpcUrls.map((url) => http(url))),
   },
 });
