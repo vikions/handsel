@@ -6,7 +6,6 @@ import {
   ClockCountdown,
   Copy,
   FileText,
-  Handshake,
   Plus,
   Receipt,
   Scales,
@@ -26,7 +25,7 @@ import {
   useReadContracts,
   useWriteContract,
 } from "wagmi";
-import { formatUnits, isAddress, parseUnits, zeroAddress, type Address, type Hash } from "viem";
+import { formatUnits, isAddress, parseAbiItem, parseUnits, zeroAddress, type Address, type Hash } from "viem";
 import { handselAddress, configIssues, contractsConfigured, usdcAddress, usdcDecimals } from "./lib/config";
 import { handselAbi, erc20Abi } from "./lib/abi";
 import {
@@ -72,7 +71,11 @@ const disputeResolutionPresets = [
   },
 ] as const;
 
-const OVERVIEW_AGREEMENT_READ_LIMIT = 500;
+const OVERVIEW_AGREEMENT_READ_LIMIT = 120;
+
+const agreementCreatedEvent = parseAbiItem(
+  "event AgreementCreated(uint256 indexed agreementId,address indexed client,address indexed beneficiary,address arbiter,uint256 amount,uint256 deadline,string title,string criteriaURI,string metadataURI)",
+);
 
 const landingTaskTickerItems = [
   { title: "Landing page for a night club", amount: "4.00" },
@@ -128,6 +131,15 @@ type ReadRow = {
   error?: Error;
 };
 
+type EventAnalyticsState = {
+  isLoading: boolean;
+  events: number;
+  totalVolume: bigint;
+  clients: number;
+  freelancers: number;
+  error?: string;
+};
+
 type TxState = {
   label: string;
   hash?: Hash;
@@ -149,6 +161,18 @@ type WriteRequest = Parameters<ReturnType<typeof useWriteContract>["writeContrac
 
 export function App() {
   const route = useHashRoute();
+
+  useEffect(() => {
+    const routeTitles: Record<Route["page"], string> = {
+      analytics: "Activity",
+      create: "Create agreement",
+      dashboard: "Agreements",
+      detail: "Agreement",
+      landing: "Proof-based settlement",
+      receipt: "Settlement receipt",
+    };
+    document.title = `${routeTitles[route.page]} | Handsel`;
+  }, [route.page]);
 
   if (route.page === "landing") {
     return <LandingPage />;
@@ -360,21 +384,41 @@ function LandingProofSurface() {
 function Header({ route }: { route: Route }) {
   return (
     <header className="topbar">
-      <a className="brand" href="#/">
-        <span>Handsel</span>
-      </a>
-      <nav className="nav-links" aria-label="Primary navigation">
-        <a className={route.page === "dashboard" ? "active" : ""} href="#/dashboard">
-          Dashboard
+      <div className="topbar-inner">
+        <a className="brand" href="#/" aria-label="Handsel home">
+          Handsel
         </a>
-        <a className={route.page === "analytics" ? "active" : ""} href="#/analytics">
-          Analytics
-        </a>
-        <a className={route.page === "create" ? "active" : ""} href="#/create">
-          Create
-        </a>
-      </nav>
-      <ConnectButton />
+        <nav className="nav-links" aria-label="Primary navigation">
+          <a
+            aria-current={route.page === "dashboard" ? "page" : undefined}
+            className={route.page === "dashboard" ? "active" : ""}
+            href="#/dashboard"
+          >
+            Agreements
+          </a>
+          <a
+            aria-current={route.page === "create" ? "page" : undefined}
+            className={route.page === "create" ? "active" : ""}
+            href="#/create"
+          >
+            Create
+          </a>
+          <a
+            aria-current={route.page === "analytics" ? "page" : undefined}
+            className={route.page === "analytics" ? "active" : ""}
+            href="#/analytics"
+          >
+            Activity
+          </a>
+        </nav>
+        <div className="topbar-actions">
+          <a className="quick-create" href="#/create" aria-label="Create agreement">
+            <Plus size={16} weight="bold" />
+            <span>New agreement</span>
+          </a>
+          <ConnectButton />
+        </div>
+      </div>
     </header>
   );
 }
@@ -422,6 +466,94 @@ function ConfigWarning() {
   );
 }
 
+function useAgreementCreatedAnalytics(expectedAgreementCount: bigint): EventAnalyticsState {
+  const publicClient = usePublicClient();
+  const [state, setState] = useState<EventAnalyticsState>({
+    isLoading: false,
+    events: 0,
+    totalVolume: 0n,
+    clients: 0,
+    freelancers: 0,
+  });
+
+  useEffect(() => {
+    if (!contractsConfigured || !publicClient || handselAddress === zeroAddress || expectedAgreementCount === 0n) {
+      setState({ isLoading: false, events: 0, totalVolume: 0n, clients: 0, freelancers: 0 });
+      return;
+    }
+
+    let cancelled = false;
+    setState((previous) => ({ ...previous, isLoading: true, error: undefined }));
+
+    loadAgreementCreatedLogs(publicClient, Number(expectedAgreementCount))
+      .then((logs) => {
+        if (cancelled) return;
+
+        const clients = new Set<string>();
+        const freelancers = new Set<string>();
+        let totalVolume = 0n;
+
+        for (const log of logs) {
+          const { amount, beneficiary, client } = log.args;
+          if (typeof client === "string") clients.add(client.toLowerCase());
+          if (typeof beneficiary === "string") freelancers.add(beneficiary.toLowerCase());
+          if (typeof amount === "bigint") totalVolume += amount;
+        }
+
+        setState({
+          isLoading: false,
+          events: logs.length,
+          totalVolume,
+          clients: clients.size,
+          freelancers: freelancers.size,
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setState((previous) => ({
+          ...previous,
+          isLoading: false,
+          error: error instanceof Error ? error.message : "Unable to load event analytics.",
+        }));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [expectedAgreementCount, publicClient]);
+
+  return state;
+}
+
+async function loadAgreementCreatedLogs(
+  publicClient: NonNullable<ReturnType<typeof usePublicClient>>,
+  expectedCount: number,
+) {
+  const latestBlock = await publicClient.getBlockNumber();
+  const blockRange = 9_999n;
+  const maxChunks = 80;
+  const logs = [];
+  let toBlock = latestBlock;
+
+  for (let chunk = 0; chunk < maxChunks; chunk += 1) {
+    const fromBlock = toBlock > blockRange ? toBlock - blockRange : 0n;
+    const chunkLogs = await publicClient.getLogs({
+      address: handselAddress,
+      event: agreementCreatedEvent,
+      fromBlock,
+      toBlock,
+    });
+
+    logs.unshift(...chunkLogs);
+
+    if (expectedCount > 0 && logs.length >= expectedCount) break;
+    if (fromBlock === 0n) break;
+    toBlock = fromBlock - 1n;
+  }
+
+  return logs;
+}
+
 function AnalyticsPage() {
   const stats = useReadContracts({
     contracts: [
@@ -437,6 +569,7 @@ function AnalyticsPage() {
   const totalVolume = readBigInt(stats.data, 1);
   const completed = readBigInt(stats.data, 2);
   const disputed = readBigInt(stats.data, 3);
+  const eventAnalytics = useAgreementCreatedAnalytics(totalAgreements);
   const sampleSize = Number(
     totalAgreements > BigInt(OVERVIEW_AGREEMENT_READ_LIMIT)
       ? BigInt(OVERVIEW_AGREEMENT_READ_LIMIT)
@@ -468,6 +601,14 @@ function AnalyticsPage() {
   const uniqueClients = new Set(agreements.map((agreement) => agreement.client.toLowerCase())).size;
   const uniqueFreelancers = new Set(agreements.map((agreement) => agreement.beneficiary.toLowerCase())).size;
   const inProgress = agreements.filter((agreement) => agreement.status === 1 || agreement.status === 2).length;
+  const displayedVolume = eventAnalytics.events > 0 ? eventAnalytics.totalVolume : totalVolume;
+  const displayedClients = eventAnalytics.events > 0 ? eventAnalytics.clients : uniqueClients;
+  const displayedFreelancers = eventAnalytics.events > 0 ? eventAnalytics.freelancers : uniqueFreelancers;
+  const peopleLoading =
+    (eventAnalytics.isLoading || agreementsRead.isLoading) && displayedClients === 0 && displayedFreelancers === 0;
+  const completeEventHistory =
+    totalAgreements > 0n && eventAnalytics.events >= Number(totalAgreements);
+  const sampledPeople = !completeEventHistory && totalAgreements > BigInt(agreements.length);
 
   return (
     <div className="overview-layout">
@@ -479,9 +620,17 @@ function AnalyticsPage() {
 
       <section className="overview-number-grid" aria-label="Protocol overview metrics">
         <OverviewMetric label="Agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
-        <OverviewMetric label="USDC volume" value={formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
-        <OverviewMetric label="Clients" value={uniqueClients.toString()} loading={agreementsRead.isLoading} />
-        <OverviewMetric label="Freelancers" value={uniqueFreelancers.toString()} loading={agreementsRead.isLoading} />
+        <OverviewMetric label="USDC volume" value={formatCompactUsdc(displayedVolume)} loading={stats.isLoading} />
+        <OverviewMetric
+          label={sampledPeople ? "Clients observed" : "Clients"}
+          value={sampledPeople ? `${displayedClients}+` : displayedClients.toString()}
+          loading={peopleLoading}
+        />
+        <OverviewMetric
+          label={sampledPeople ? "Freelancers observed" : "Freelancers"}
+          value={sampledPeople ? `${displayedFreelancers}+` : displayedFreelancers.toString()}
+          loading={peopleLoading}
+        />
       </section>
 
       <section className="overview-ledger">
@@ -517,6 +666,12 @@ function AnalyticsPage() {
         </div>
       </section>
 
+      {sampledPeople ? (
+        <p className="overview-data-note">
+          Unique wallet counts currently reflect {agreements.length} of {totalAgreements.toString()} agreements while
+          event history loads.
+        </p>
+      ) : null}
       {stats.error ? <InlineError message={stats.error.message} /> : null}
       {agreementsRead.error ? <InlineError message={agreementsRead.error.message} /> : null}
     </div>
@@ -549,49 +704,45 @@ function Dashboard() {
   const disputed = readBigInt(stats.data, 3);
 
   return (
-    <div className="dashboard-grid">
-      <section className="hero-panel">
-        <div className="eyebrow">Handsel dashboard</div>
-        <h1>Deals</h1>
-        <p>Hold USDC. Get proof. Release on approval.</p>
-        <div className="hero-actions">
-          <a className="primary-link" href="#/create">
-            <Plus size={18} weight="bold" />
-            Create agreement
-          </a>
+    <div className="dashboard-page">
+      <section className="page-heading">
+        <div>
+          <span className="page-kicker">Workspace</span>
+          <h1>Work agreements</h1>
+          <p>One place for committed funds, submitted proof, and settlement.</p>
         </div>
+        <a className="primary-link" href="#/create">
+          <Plus size={18} weight="bold" />
+          Create agreement
+        </a>
       </section>
 
-      <section className="stats-panel" aria-label="Protocol stats">
-        <Metric label="Total agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
-        <Metric label="Total volume" value={formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
+      <section className="dashboard-stats" aria-label="Protocol stats">
+        <Metric label="Agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
+        <Metric label="USDC volume" value={formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
         <Metric label="Completed" value={completed.toString()} loading={stats.isLoading} />
         <Metric label="Disputed" value={disputed.toString()} loading={stats.isLoading} />
         {stats.error ? <InlineError message={stats.error.message} /> : null}
       </section>
 
-      <section className="agent-panel">
-        <div className="panel-icon">
-          <Handshake size={24} weight="duotone" />
-        </div>
-        <div>
-          <h2>Agent task mode</h2>
-          <p>Future workflow for autonomous task settlement.</p>
-        </div>
-      </section>
-
       <section className="activity-panel" id="user-agreements">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Wallet activity</span>
-            <h2>Your agreements</h2>
+            <h2>Wallet agreements</h2>
+            <p>Agreements where this wallet is client, freelancer, or arbiter.</p>
           </div>
           <a className="text-link" href="#/create">
-            New agreement
+            Create new
             <ArrowRight size={16} weight="bold" />
           </a>
         </div>
         <UserAgreements />
+      </section>
+
+      <section className="agent-roadmap" aria-label="Agent task mode roadmap">
+        <span>Agent task mode</span>
+        <p>The same agreement lifecycle is designed to support API-created tasks in a future release.</p>
+        <strong>Roadmap</strong>
       </section>
     </div>
   );
@@ -608,12 +759,21 @@ function Metric({ label, value, loading }: { label: string; value: string; loadi
 
 function UserAgreements() {
   const { address, isConnected } = useAccount();
+  const [limit, setLimit] = useState(25n);
+
+  const userCountRead = useReadContract({
+    address: handselAddress,
+    abi: handselAbi,
+    functionName: "getUserAgreementCount",
+    args: [address ?? zeroAddress],
+    query: { enabled: contractsConfigured && isConnected && Boolean(address) },
+  });
 
   const userIdsRead = useReadContract({
     address: handselAddress,
     abi: handselAbi,
     functionName: "getUserAgreementIds",
-    args: [address ?? zeroAddress, 0n, 25n],
+    args: [address ?? zeroAddress, 0n, limit],
     query: { enabled: contractsConfigured && isConnected && Boolean(address) },
   });
 
@@ -636,15 +796,20 @@ function UserAgreements() {
         .filter((agreement): agreement is AgreementRecord => Boolean(agreement)),
     [agreementsRead.data, ids],
   );
+  const userAgreementCount = typeof userCountRead.data === "bigint" ? userCountRead.data : BigInt(ids.length);
 
   if (!isConnected) {
     return <EmptyState title="Connect a wallet" body="Your client and freelancer agreements will appear here." />;
   }
 
-  if (userIdsRead.isLoading || agreementsRead.isLoading) return <AgreementListSkeleton />;
+  if (userCountRead.isLoading || userIdsRead.isLoading || agreementsRead.isLoading) return <AgreementListSkeleton />;
 
-  if (userIdsRead.error || agreementsRead.error) {
-    return <InlineError message={(userIdsRead.error ?? agreementsRead.error)?.message ?? "Unable to load agreements."} />;
+  if (userCountRead.error || userIdsRead.error || agreementsRead.error) {
+    return (
+      <InlineError
+        message={(userCountRead.error ?? userIdsRead.error ?? agreementsRead.error)?.message ?? "Unable to load agreements."}
+      />
+    );
   }
 
   if (agreements.length === 0) {
@@ -652,23 +817,45 @@ function UserAgreements() {
   }
 
   return (
-    <div className="agreement-list">
-      {agreements.map((agreement) => (
-        <a className="agreement-row" href={`#/agreements/${agreement.id.toString()}`} key={agreement.id.toString()}>
-          <div>
-            <span className={`status-pill status-${statusLabels[agreement.status]?.toLowerCase() ?? "unknown"}`}>
-              {statusLabels[agreement.status] ?? "Unknown"}
-            </span>
-            <strong>{agreement.title || `Agreement #${agreement.id.toString()}`}</strong>
-            <p>{agreement.criteriaURI || agreement.metadataURI || "No criteria supplied"}</p>
-          </div>
-          <div className="row-amount">
-            <strong>{formatUsdc(agreement.amount)}</strong>
-            <span>Deadline {formatDate(agreement.deadline)}</span>
-          </div>
-        </a>
-      ))}
-    </div>
+    <>
+      <div className="agreement-list">
+        {agreements.map((agreement) => {
+          const connectedAddress = address?.toLowerCase();
+          const role =
+            connectedAddress === agreement.client.toLowerCase()
+              ? "Client"
+              : connectedAddress === agreement.beneficiary.toLowerCase()
+                ? "Freelancer"
+                : "Arbiter";
+
+          return (
+            <a className="agreement-row" href={`#/agreements/${agreement.id.toString()}`} key={agreement.id.toString()}>
+              <div className="agreement-identity">
+                <div className="agreement-row-labels">
+                  <span className={`status-pill status-${statusLabels[agreement.status]?.toLowerCase() ?? "unknown"}`}>
+                    {statusLabels[agreement.status] ?? "Unknown"}
+                  </span>
+                  <span className="agreement-role">{role}</span>
+                  <span className="agreement-number">#{agreement.id.toString()}</span>
+                </div>
+                <strong>{agreement.title || `Agreement #${agreement.id.toString()}`}</strong>
+                <p>{agreement.criteriaURI || agreement.metadataURI || "Acceptance criteria not supplied"}</p>
+              </div>
+              <div className="row-amount">
+                <strong>{formatUsdc(agreement.amount)}</strong>
+                <span>Due {formatDate(agreement.deadline)}</span>
+                <ArrowRight size={17} weight="bold" aria-hidden="true" />
+              </div>
+            </a>
+          );
+        })}
+      </div>
+      {BigInt(agreements.length) < userAgreementCount ? (
+        <button className="load-more-button" type="button" onClick={() => setLimit((current) => current + 25n)}>
+          Load more agreements
+        </button>
+      ) : null}
+    </>
   );
 }
 
@@ -676,13 +863,13 @@ function CreateAgreementPage() {
   const { address, isConnected } = useAccount();
   const queryClient = useQueryClient();
   const { run, isPending, txState } = useTxRunner();
-  const [title, setTitle] = useState("Cafe booking page");
+  const [title, setTitle] = useState("");
   const [beneficiary, setBeneficiary] = useState("");
   const [arbiter, setArbiter] = useState("");
-  const [amount, setAmount] = useState("100");
+  const [amount, setAmount] = useState("");
   const [deadline, setDeadline] = useState(defaultDeadlineInput);
-  const [criteriaURI, setCriteriaURI] = useState("Live URL, source PR, mobile screenshots, and handoff notes.");
-  const [metadataURI, setMetadataURI] = useState("Booking page for a small cafe launch.");
+  const [criteriaURI, setCriteriaURI] = useState("");
+  const [metadataURI, setMetadataURI] = useState("");
   const parsedAmount = parseUsdcAmount(amount);
 
   const allowanceRead = useReadContract({
@@ -704,6 +891,7 @@ function CreateAgreementPage() {
   const allowance = typeof allowanceRead.data === "bigint" ? allowanceRead.data : 0n;
   const balance = typeof balanceRead.data === "bigint" ? balanceRead.data : 0n;
   const needsApproval = parsedAmount !== null && allowance < parsedAmount;
+  const hasSufficientBalance = parsedAmount !== null && parsedAmount <= balance;
   const formError = validateCreateForm({ arbiter, amount: parsedAmount, beneficiary, criteriaURI, deadline, title });
 
   async function approve() {
@@ -738,67 +926,157 @@ function CreateAgreementPage() {
   }
 
   return (
-    <div className="form-layout">
-      <section className="form-copy">
-        <span className="eyebrow">Create agreement</span>
-        <h1>Create a deal.</h1>
-        <p>Set recipient, amount, deadline, and proof.</p>
-        <div className="balance-strip">
-          <span>Wallet balance</span>
-          <strong>{formatUsdc(balance)}</strong>
-        </div>
+    <div className="create-page">
+      <section className="create-heading">
+        <a className="back-link" href="#/dashboard">
+          <ArrowRight size={16} weight="bold" />
+          Agreements
+        </a>
+        <span className="page-kicker">New agreement</span>
+        <h1>Define the work.</h1>
+        <p>Clear criteria now make proof and approval easier later.</p>
       </section>
 
-      <section className="form-panel">
-        <Field label="Title">
-          <input value={title} onChange={(event) => setTitle(event.target.value)} />
-        </Field>
-        <Field label="Freelancer wallet">
-          <input value={beneficiary} onChange={(event) => setBeneficiary(event.target.value)} placeholder="0x..." />
-        </Field>
-        <Field label="Arbiter wallet">
-          <input value={arbiter} onChange={(event) => setArbiter(event.target.value)} placeholder="0x..." />
-        </Field>
-        <div className="form-grid">
-          <Field label="Amount">
-            <input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
-          </Field>
-          <Field label="Deadline">
-            <input type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
-          </Field>
-        </div>
-        <Field label="Proof required">
-          <textarea value={criteriaURI} onChange={(event) => setCriteriaURI(event.target.value)} rows={4} />
-        </Field>
-        <Field label="Notes">
-          <textarea value={metadataURI} onChange={(event) => setMetadataURI(event.target.value)} rows={3} />
-        </Field>
+      <div className="create-layout">
+        <section className="form-panel">
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>01</span>
+              <div>
+                <h2>Work</h2>
+                <p>What should be delivered?</p>
+              </div>
+            </div>
+            <Field label="Agreement title">
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="e.g. Cafe booking page"
+              />
+            </Field>
+            <Field label="Acceptance criteria" helper="List the evidence the freelancer must submit for approval.">
+              <textarea
+                value={criteriaURI}
+                onChange={(event) => setCriteriaURI(event.target.value)}
+                placeholder="Live URL, source PR, mobile screenshots, and handoff notes."
+                rows={5}
+              />
+            </Field>
+            <Field label="Project notes" helper="Optional context, brief link, or metadata URI.">
+              <textarea
+                value={metadataURI}
+                onChange={(event) => setMetadataURI(event.target.value)}
+                placeholder="Short context for the work."
+                rows={3}
+              />
+            </Field>
+          </div>
 
-        {formError ? <InlineError message={formError} /> : null}
-        {parsedAmount !== null && parsedAmount > balance ? <InlineError message="Wallet USDC balance is below amount." /> : null}
-        <TxStatus state={txState} />
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>02</span>
+              <div>
+                <h2>People</h2>
+                <p>Who delivers, and who resolves a dispute?</p>
+              </div>
+            </div>
+            <Field label="Freelancer wallet">
+              <input value={beneficiary} onChange={(event) => setBeneficiary(event.target.value)} placeholder="0x..." />
+            </Field>
+            <Field label="Arbiter wallet">
+              <input value={arbiter} onChange={(event) => setArbiter(event.target.value)} placeholder="0x..." />
+            </Field>
+          </div>
 
-        <div className="action-strip">
-          <button
-            className="secondary-button"
-            disabled={!contractsConfigured || !isConnected || !needsApproval || Boolean(formError) || isPending}
-            type="button"
-            onClick={approve}
-          >
-            <ShieldCheck size={18} weight="duotone" />
-            {needsApproval ? "Approve USDC" : "Approved"}
-          </button>
-          <button
-            className="primary-button"
-            disabled={!contractsConfigured || !isConnected || needsApproval || Boolean(formError) || isPending}
-            type="button"
-            onClick={createAgreement}
-          >
-            <Plus size={18} weight="bold" />
-            Create agreement
-          </button>
-        </div>
-      </section>
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>03</span>
+              <div>
+                <h2>Settlement</h2>
+                <p>Set the committed amount and final deadline.</p>
+              </div>
+            </div>
+            <div className="form-grid">
+              <Field label="Amount in USDC">
+                <div className="amount-input">
+                  <input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                  <span>USDC</span>
+                </div>
+              </Field>
+              <Field label="Deadline">
+                <input type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
+              </Field>
+            </div>
+          </div>
+
+          {formError ? <InlineError message={formError} /> : null}
+          {parsedAmount !== null && !hasSufficientBalance ? <InlineError message="Wallet USDC balance is below amount." /> : null}
+          <TxStatus state={txState} />
+
+          <div className="action-strip">
+            <button
+              className="secondary-button"
+              disabled={
+                !contractsConfigured ||
+                !isConnected ||
+                !needsApproval ||
+                !hasSufficientBalance ||
+                Boolean(formError) ||
+                isPending
+              }
+              type="button"
+              onClick={approve}
+            >
+              <ShieldCheck size={18} weight="duotone" />
+              {isPending ? "Confirm in wallet" : needsApproval ? "Approve USDC" : "USDC approved"}
+            </button>
+            <button
+              className="primary-button"
+              disabled={
+                !contractsConfigured ||
+                !isConnected ||
+                needsApproval ||
+                !hasSufficientBalance ||
+                Boolean(formError) ||
+                isPending
+              }
+              type="button"
+              onClick={createAgreement}
+            >
+              <Plus size={18} weight="bold" />
+              {isPending ? "Confirm in wallet" : "Create agreement"}
+            </button>
+          </div>
+        </section>
+
+        <aside className="create-summary">
+          <div className="summary-balance">
+            <span>Wallet balance</span>
+            <strong>{isConnected ? formatUsdc(balance) : "Connect wallet"}</strong>
+          </div>
+          <div className="summary-amount">
+            <span>Agreement value</span>
+            <strong>{parsedAmount === null ? "0 USDC" : formatUsdc(parsedAmount)}</strong>
+          </div>
+          <div className="readiness-list" aria-label="Agreement readiness">
+            <div className={isConnected ? "ready" : ""}>
+              <CheckCircle size={18} weight={isConnected ? "fill" : "regular"} />
+              <span>Wallet connected</span>
+            </div>
+            <div className={!formError ? "ready" : ""}>
+              <CheckCircle size={18} weight={!formError ? "fill" : "regular"} />
+              <span>Agreement complete</span>
+            </div>
+            <div className={!needsApproval && hasSufficientBalance ? "ready" : ""}>
+              <CheckCircle size={18} weight={!needsApproval && hasSufficientBalance ? "fill" : "regular"} />
+              <span>USDC allowance ready</span>
+            </div>
+          </div>
+          <p className="summary-note">
+            Funds move to the Handsel contract when the agreement is created. Release still requires proof and client approval.
+          </p>
+        </aside>
+      </div>
     </div>
   );
 }
@@ -1214,7 +1492,7 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 
 function InlineError({ message }: { message: string }) {
   return (
-    <div className="inline-error">
+    <div className="inline-error" role="alert">
       <WarningCircle size={18} weight="duotone" />
       <span>{message}</span>
     </div>
@@ -1226,7 +1504,7 @@ function TxStatus({ state }: { state?: TxState }) {
   if (state.error) return <InlineError message={state.error} />;
 
   return (
-    <div className="tx-status">
+    <div className="tx-status" role="status" aria-live="polite">
       <CheckCircle size={18} weight="duotone" />
       <div>
         <strong>{state.success ?? state.label}</strong>
@@ -1273,9 +1551,13 @@ function useTxRunner() {
   const queryClient = useQueryClient();
   const { writeContractAsync, isPending } = useWriteContract();
   const [txState, setTxState] = useState<TxState>();
+  const [isConfirming, setIsConfirming] = useState(false);
 
   async function run(label: string, request: WriteRequest) {
+    if (isConfirming) return undefined;
+
     try {
+      setIsConfirming(true);
       setTxState({ label });
       const hash = await writeContractAsync(request);
       setTxState({ label: "Waiting for confirmation", hash });
@@ -1286,10 +1568,12 @@ function useTxRunner() {
     } catch (error) {
       setTxState({ label, error: error instanceof Error ? error.message : "Transaction failed." });
       return undefined;
+    } finally {
+      setIsConfirming(false);
     }
   }
 
-  return { run, isPending, txState };
+  return { run, isPending: isPending || isConfirming, txState };
 }
 
 function normalizeAgreement(raw: unknown, id: bigint): AgreementRecord | null {
