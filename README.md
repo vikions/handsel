@@ -40,6 +40,18 @@ Circle's arc-escrow repository demonstrates a sample escrow workflow on Arc test
 
 The Circle sample helps guide future Circle developer platform integrations: Circle Wallets / Programmable Wallets, gas sponsorship where supported, server-side transaction records, webhooks, and AI-assisted validation. This repository does not copy Circle's UI, branding, embedded bytecode, or large source blocks.
 
+### Circle Contracts event monitoring
+
+Handsel includes an idempotent setup script for Circle Contracts event monitors. It registers the deployed Arc Testnet contract lifecycle events so a later webhook service can persist timelines, notifications, and public settlement receipts without polling the chain.
+
+Add `CIRCLE_API_KEY` to the local root `.env` file, then run:
+
+```bash
+pnpm circle:monitors
+```
+
+The script never writes the API key to output or source control. In Circle Console, subscribe a webhook to `contracts.EventLog` after the monitors are created.
+
 ## Current Architecture
 
 - `contracts/`: Hardhat Solidity project for the Handsel agreement primitive.
@@ -213,7 +225,10 @@ Handsel demonstrates real-world economic activity on Arc testnet: structured ser
 - Current: Live Arc testnet deployment with a public app, deployed Handsel contract, USDC agreement creation, proof submission, client release, dispute resolution, public receipts, and onchain verification.
 - Next: Production hardening for contract tests, frontend states, transaction visibility, receipts, error handling, and agreement lifecycle UX.
 - AI-assisted review: Expand the local proof review seam into a stronger AI-assisted recommendation layer that compares criteria and submitted proof while keeping final settlement decisions in human hands.
-- Circle developer platform: Research and integrate Circle Wallets / Programmable Wallets to reduce onboarding friction, plus Circle Gas Station where supported for sponsored transaction fees.
+- Circle Wallets: Add Arc Testnet SCA onboarding and Circle Gas Station sponsorship for client, freelancer, and agent contract actions.
+- Circle Contracts: Activate lifecycle event monitors and a `contracts.EventLog` webhook for durable timelines, notifications, and receipts.
+- Crosschain funding: Add CCTP Bridge Kit as an optional pre-agreement funding step that brings USDC onto Arc without changing Handsel's settlement rules.
+- Agent tasks: Execute allowlisted Handsel contract actions from a Circle Agent Wallet on `ARC-TESTNET` and surface the resulting transaction trail in the same agreement UI.
 - Product expansion: Agreement templates, analytics, dispute workflow improvements, marketplace/API paths, and user onboarding for freelancers, agencies, creators, and small businesses.
 
 ## Security and Compliance Notes

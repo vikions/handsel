@@ -11,7 +11,10 @@ const arcChainId = process.env.ARC_TESTNET_CHAIN_ID
   : undefined;
 
 const arcTestnet: Record<string, unknown> = {
-  url: process.env.ARC_TESTNET_RPC_URL || "http://127.0.0.1:8545",
+  url:
+    process.env.ARC_TESTNET_VERIFICATION_RPC_URL ||
+    process.env.ARC_TESTNET_RPC_URL ||
+    "http://127.0.0.1:8545",
   accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
 };
 
@@ -31,6 +34,24 @@ const config: HardhatUserConfig = {
   },
   networks: {
     arcTestnet,
+  },
+  etherscan: {
+    apiKey: {
+      arcTestnet: "blockscout",
+    },
+    customChains: [
+      {
+        network: "arcTestnet",
+        chainId: 5042002,
+        urls: {
+          apiURL: "https://testnet.arcscan.app/api",
+          browserURL: "https://testnet.arcscan.app",
+        },
+      },
+    ],
+  },
+  sourcify: {
+    enabled: false,
   },
   paths: {
     sources: "./contracts",
