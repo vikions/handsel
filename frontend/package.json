@@ -10,11 +10,12 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@circle-fin/modular-wallets-core": "^1.0.15",
     "@phosphor-icons/react": "^2.1.7",
     "@tanstack/react-query": "^5.59.16",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "viem": "^2.21.44",
+    "viem": "2.45.3",
     "wagmi": "^2.12.20"
   },
   "devDependencies": {

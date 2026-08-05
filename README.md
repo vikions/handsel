@@ -42,7 +42,7 @@ The Circle sample helps guide future Circle developer platform integrations: Cir
 
 ### Circle Contracts event monitoring
 
-Handsel includes an idempotent setup script for Circle Contracts event monitors. It registers the deployed Arc Testnet contract lifecycle events so a later webhook service can persist timelines, notifications, and public settlement receipts without polling the chain.
+Handsel includes an idempotent setup script for Circle Contracts event monitors. It registers the deployed Arc Testnet lifecycle events and, when `HANDSEL_WEBHOOK_URL` is set, creates a restricted `contracts.eventLog` webhook subscription.
 
 Add `CIRCLE_API_KEY` to the local root `.env` file, then run:
 
@@ -50,7 +50,11 @@ Add `CIRCLE_API_KEY` to the local root `.env` file, then run:
 pnpm circle:monitors
 ```
 
-The script never writes the API key to output or source control. In Circle Console, subscribe a webhook to `contracts.EventLog` after the monitors are created.
+The script never writes the API key to output or source control. The Railway-ready server verifies Circle's ECDSA signature, decodes the event, reloads the agreement from Arc, and stores the indexed snapshot and transaction event in Supabase.
+
+### Circle Modular Wallets
+
+The frontend supports an optional Circle passkey smart account alongside the existing injected wallet. Users retain control through WebAuthn, and Handsel submits contract actions as sponsored Arc Testnet user operations. The Circle Client Key allowed domain and Passkey Domain must match the application domain.
 
 ## Current Architecture
 
@@ -63,8 +67,12 @@ The script never writes the API key to output or source control. In Circle Conso
 - `frontend/src/lib/aiValidation.ts`: deterministic local MVP review seam for future OpenAI validation.
 - `frontend/src/lib/timeline.ts`: timeline view-model helper.
 - `frontend/src/lib/receipts.ts`: public receipt view-model helper.
+- `frontend/src/lib/circleWallet.ts`: Circle passkey smart-account and gas-sponsored transaction adapter.
+- `frontend/src/lib/activityApi.ts`: personal Circle-indexed agreement activity client.
+- `server/`: Railway-ready Node API for Circle webhook verification and activity reads.
+- `supabase/migrations/`: service-role-only agreement index and idempotent event ledger.
 
-The current product intentionally keeps Vite and direct wallet transactions so the live Arc testnet app remains simple, auditable, and easy to verify. Circle Wallets, gas sponsorship, Supabase persistence, and OpenAI-backed validation are planned product layers on top of the current onchain escrow flow.
+The deployed contract remains the settlement source of truth. Circle Contracts supplies event delivery, Supabase supplies a durable query index, and the frontend retains direct Arc reads for core agreement state. OpenAI-backed proof validation remains future work.
 
 ## Smart Contract Flow
 
@@ -101,6 +109,9 @@ VITE_ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
 VITE_ARC_TESTNET_CHAIN_ID=5042002
 VITE_USDC_ADDRESS=0x3600000000000000000000000000000000000000
 VITE_HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
+VITE_HANDSEL_API_URL=http://localhost:8787
+VITE_CIRCLE_CLIENT_KEY=
+VITE_CIRCLE_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
 ```
 
 The app still compiles without real credentials, but live contract reads and writes require the Arc testnet values above.
@@ -115,23 +126,32 @@ USDC_ADDRESS=0x3600000000000000000000000000000000000000
 HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
 ```
 
-Planned Circle / AI integration variables:
+Server and Circle integration variables:
 
 ```bash
-NEXT_PUBLIC_APP_URL=https://www.archandsel.xyz
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+PORT=8787
+APP_ORIGIN=http://localhost:5173,https://www.archandsel.xyz
+ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
+SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
-
 CIRCLE_API_KEY=
-CIRCLE_ENTITY_SECRET=
 CIRCLE_BLOCKCHAIN=ARC-TESTNET
-
-OPENAI_API_KEY=
-
-NEXT_PUBLIC_USDC_CONTRACT_ADDRESS=0x3600000000000000000000000000000000000000
-NEXT_PUBLIC_HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
+HANDSEL_WEBHOOK_URL=https://your-railway-domain.example/api/webhooks/circle
 ```
+
+`CIRCLE_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and any future entity secret are server-only. Never expose them through `VITE_*`. The Circle Client Key is intended for the browser and must be domain-restricted in Circle Console.
+
+## Circle-backed Personal Activity Setup
+
+1. Create a Supabase project and run `supabase/migrations/202608040001_circle_activity.sql` in its SQL editor.
+2. Deploy `server/` to Railway using the variables in `server/.env.example`.
+3. Set `HANDSEL_WEBHOOK_URL` locally to `https://<railway-domain>/api/webhooks/circle`.
+4. Create a restricted Circle API key with Contracts and Webhooks Read/Write access, then run `pnpm circle:monitors`.
+5. In Circle Console Modular Wallets Configurator, set both the Client Key allowed domain and Passkey Domain to `www.archandsel.xyz`, matching the canonical application host exactly.
+6. Add the Client Key, Client URL, and Railway API URL to the Vercel frontend variables and redeploy.
+
+The personal dashboard is keyed by the connected wallet address. It shows agreements where that address is client, beneficiary, or arbiter, plus a Circle-indexed event ledger linked to ArcScan.
 
 ## Local Setup
 
@@ -163,6 +183,14 @@ Run the local browser app:
 
 ```bash
 pnpm dev
+```
+
+This command builds and serves the same static artifact deployed by Vercel. Use `pnpm dev:vite` when the local machine permits Vite's hot-reload process.
+
+Run the API in a second terminal:
+
+```bash
+pnpm dev:server
 ```
 
 ## Deployment and Smoke Test

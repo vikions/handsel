@@ -2,20 +2,27 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Brain,
+  CalendarBlank,
+  CaretDown,
   CheckCircle,
   ClockCountdown,
   Copy,
+  CurrencyCircleDollar,
   FileText,
+  Fingerprint,
+  Gavel,
+  NotePencil,
   Plus,
   Receipt,
   Scales,
   ShieldCheck,
   UploadSimple,
+  UserCircle,
   Wallet,
   WarningCircle,
   XCircle,
 } from "@phosphor-icons/react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useAccount,
   useConnect,
@@ -26,7 +33,15 @@ import {
   useWriteContract,
 } from "wagmi";
 import { formatUnits, isAddress, parseUnits, zeroAddress, type Address, type Hash } from "viem";
-import { handselAddress, configIssues, contractsConfigured, usdcAddress, usdcDecimals } from "./lib/config";
+import {
+  circleWalletConfigured,
+  handselAddress,
+  configIssues,
+  contractsConfigured,
+  selectCircleWalletMode,
+  usdcAddress,
+  usdcDecimals,
+} from "./lib/config";
 import { handselAbi, erc20Abi } from "./lib/abi";
 import {
   loadValidationResult,
@@ -36,6 +51,7 @@ import {
 } from "./lib/aiValidation";
 import { buildTimeline } from "./lib/timeline";
 import { buildReceipt } from "./lib/receipts";
+import { activityApiConfigured, getPersonalActivity } from "./lib/activityApi";
 
 const statusLabels = [
   "Created",
@@ -415,25 +431,59 @@ function Header({ route }: { route: Route }) {
 
 function ConnectButton() {
   const { address, isConnected } = useAccount();
-  const { connectors, connect, isPending } = useConnect();
+  const { connectors, connect, error, isPending } = useConnect();
   const { disconnect } = useDisconnect();
-  const connector = connectors[0];
+  const [open, setOpen] = useState(false);
+  const browserConnector = connectors.find((connector) => connector.id !== "circlePasskey");
+  const circleConnector = connectors.find((connector) => connector.id === "circlePasskey");
+
+  if (isConnected) {
+    return (
+      <button className="wallet-button" type="button" onClick={() => disconnect()}>
+        <Wallet size={18} weight="duotone" />
+        <span>{address ? formatAddress(address) : "Disconnect"}</span>
+      </button>
+    );
+  }
 
   return (
-    <button
-      className="wallet-button"
-      type="button"
-      onClick={() => {
-        if (isConnected) {
-          disconnect();
-          return;
-        }
-        if (connector) connect({ connector });
-      }}
-    >
-      <Wallet size={18} weight="duotone" />
-      <span>{isConnected && address ? formatAddress(address) : isPending ? "Connecting" : "Connect Wallet"}</span>
-    </button>
+    <div className="wallet-menu-wrap">
+      <button className="wallet-button" type="button" onClick={() => setOpen((value) => !value)}>
+        <Wallet size={18} weight="duotone" />
+        <span>{isPending ? "Connecting" : "Connect Wallet"}</span>
+      </button>
+      {open ? (
+        <div className="wallet-menu">
+          <button type="button" onClick={() => browserConnector && connect({ connector: browserConnector })}>
+            <Wallet size={18} />
+            <span><strong>Browser wallet</strong><small>MetaMask or injected wallet</small></span>
+          </button>
+          <button
+            type="button"
+            disabled={!circleWalletConfigured}
+            onClick={() => {
+              selectCircleWalletMode("login");
+              if (circleConnector) connect({ connector: circleConnector });
+            }}
+          >
+            <Fingerprint size={18} />
+            <span><strong>Circle passkey</strong><small>Use an existing smart account</small></span>
+          </button>
+          <button
+            type="button"
+            disabled={!circleWalletConfigured}
+            onClick={() => {
+              selectCircleWalletMode("register");
+              if (circleConnector) connect({ connector: circleConnector });
+            }}
+          >
+            <Plus size={18} />
+            <span><strong>Create passkey wallet</strong><small>User-controlled on Arc</small></span>
+          </button>
+          {error ? <small className="wallet-menu-error">{error.message}</small> : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -652,6 +702,7 @@ function OverviewMetric({ label, value, loading }: { label: string; value: strin
 }
 
 function Dashboard() {
+  const { address } = useAccount();
   const stats = useReadContracts({
     contracts: [
       { address: handselAddress, abi: handselAbi, functionName: "getAgreementCount" },
@@ -702,6 +753,8 @@ function Dashboard() {
         <UserAgreements />
       </section>
 
+      {activityApiConfigured ? <CircleActivity address={address} /> : null}
+
       <section className="agent-roadmap" aria-label="Agent task mode roadmap">
         <span>Agent task mode</span>
         <p>The same agreement lifecycle is designed to support API-created tasks in a future release.</p>
@@ -709,6 +762,57 @@ function Dashboard() {
       </section>
     </div>
   );
+}
+
+function CircleActivity({ address }: { address?: Address }) {
+  const activity = useQuery({
+    queryKey: ["circle-activity", address],
+    queryFn: () => getPersonalActivity(address!),
+    enabled: Boolean(address),
+    refetchInterval: 15_000,
+  });
+
+  return (
+    <section className="circle-activity-panel">
+      <div className="section-heading circle-activity-heading">
+        <div>
+          <span className="circle-source"><span /> Circle Contracts</span>
+          <h2>Verified activity</h2>
+        </div>
+        {activity.data ? <small>{activity.data.events.length} indexed events</small> : null}
+      </div>
+      {!address ? <EmptyState title="Connect your wallet" body="Your indexed agreement history will appear here." /> : null}
+      {address && activity.isLoading ? <AgreementListSkeleton /> : null}
+      {activity.error ? <InlineError message={activity.error.message} /> : null}
+      {address && activity.data?.events.length === 0 ? (
+        <EmptyState title="No Circle events yet" body="New agreement actions will be indexed here automatically." />
+      ) : null}
+      {activity.data?.events.length ? (
+        <div className="circle-event-list">
+          {activity.data.events.slice(0, 12).map((event) => (
+            <a
+              className="circle-event-row"
+              href={`https://testnet.arcscan.app/tx/${event.tx_hash}`}
+              key={event.notification_id}
+              rel="noreferrer"
+              target="_blank"
+            >
+              <span className="circle-event-mark" />
+              <div>
+                <strong>{formatEventName(event.event_name)}</strong>
+                <small>Agreement #{event.agreement_id} · {new Date(event.confirmed_at).toLocaleString()}</small>
+              </div>
+              <ArrowRight size={16} weight="bold" />
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function formatEventName(eventName: string) {
+  return eventName.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^Agreement /, "");
 }
 
 function Metric({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
@@ -856,6 +960,16 @@ function CreateAgreementPage() {
   const needsApproval = parsedAmount !== null && allowance < parsedAmount;
   const hasSufficientBalance = parsedAmount !== null && parsedAmount <= balance;
   const formError = validateCreateForm({ arbiter, amount: parsedAmount, beneficiary, criteriaURI, deadline, title });
+  const formStarted = Boolean(title || amount || beneficiary || arbiter || criteriaURI || metadataURI);
+  const workReady = title.trim().length >= 3 && criteriaURI.trim().length >= 10;
+  const peopleReady =
+    isAddress(beneficiary) &&
+    isAddress(arbiter) &&
+    beneficiary.toLowerCase() !== arbiter.toLowerCase();
+  const deadlineReady = new Date(deadline).getTime() > Date.now();
+  const amountReady = parsedAmount !== null && parsedAmount > 0n;
+  const settlementReady = amountReady && deadlineReady;
+  const walletReady = isConnected && hasSufficientBalance;
 
   async function approve() {
     if (parsedAmount === null) return;
@@ -890,111 +1004,224 @@ function CreateAgreementPage() {
 
   return (
     <div className="create-page">
-      <section className="create-heading">
+      <section className="create-heading create-heading-refined">
         <a className="back-link" href="#/dashboard">
           <ArrowRight size={16} weight="bold" />
           Agreements
         </a>
-        <span className="page-kicker">New agreement</span>
-        <h1>Define the work.</h1>
-        <p>Clear criteria now make proof and approval easier later.</p>
+        <div className="create-title-row">
+          <div>
+            <span className="page-kicker">New agreement</span>
+            <h1>Set the terms.</h1>
+          </div>
+          <span className="draft-mark">Draft</span>
+        </div>
+        <p>Describe the result, choose the people, and commit the USDC.</p>
       </section>
 
-      <div className="create-layout">
-        <section className="form-panel">
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>01</span>
+      <div className="agreement-composer">
+        <section className="agreement-document" aria-label="New work agreement">
+          <div className="composer-section composer-opening">
+            <div className="composer-section-heading">
+              <div className="composer-heading-icon" aria-hidden="true">
+                <NotePencil size={19} weight="duotone" />
+              </div>
               <div>
                 <h2>Work</h2>
-                <p>What should be delivered?</p>
+                <p>Name the outcome and when it is due.</p>
               </div>
             </div>
-            <Field label="Agreement title">
+
+            <Field label="What are you hiring for?">
               <input
+                autoComplete="off"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="e.g. Cafe booking page"
+                placeholder="e.g. Build a cafe booking page"
               />
             </Field>
-            <Field label="Acceptance criteria" helper="List the evidence the freelancer must submit for approval.">
-              <textarea
-                value={criteriaURI}
-                onChange={(event) => setCriteriaURI(event.target.value)}
-                placeholder="Live URL, source PR, mobile screenshots, and handoff notes."
-                rows={5}
-              />
-            </Field>
-            <Field label="Project notes" helper="Optional context, brief link, or metadata URI.">
-              <textarea
-                value={metadataURI}
-                onChange={(event) => setMetadataURI(event.target.value)}
-                placeholder="Short context for the work."
-                rows={3}
-              />
-            </Field>
-          </div>
 
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>02</span>
-              <div>
-                <h2>People</h2>
-                <p>Who delivers, and who resolves a dispute?</p>
-              </div>
-            </div>
-            <Field label="Freelancer wallet">
-              <input value={beneficiary} onChange={(event) => setBeneficiary(event.target.value)} placeholder="0x..." />
-            </Field>
-            <Field label="Arbiter wallet">
-              <input value={arbiter} onChange={(event) => setArbiter(event.target.value)} placeholder="0x..." />
-            </Field>
-          </div>
-
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>03</span>
-              <div>
-                <h2>Settlement</h2>
-                <p>Set the committed amount and final deadline.</p>
-              </div>
-            </div>
-            <div className="form-grid">
-              <Field label="Amount in USDC">
-                <div className="amount-input">
-                  <input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
+            <div className="terms-grid">
+              <Field label="Payment">
+                <div className="amount-input composer-amount-input">
+                  <CurrencyCircleDollar size={18} weight="duotone" aria-hidden="true" />
+                  <input
+                    aria-label="Payment amount in USDC"
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder="0.00"
+                  />
                   <span>USDC</span>
                 </div>
               </Field>
-              <Field label="Deadline">
-                <input type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
+              <Field label="Due date">
+                <div className="date-input-wrap">
+                  <CalendarBlank size={18} weight="duotone" aria-hidden="true" />
+                  <input
+                    aria-label="Agreement deadline"
+                    type="datetime-local"
+                    value={deadline}
+                    onChange={(event) => setDeadline(event.target.value)}
+                  />
+                </div>
               </Field>
             </div>
           </div>
 
-          {formError ? <InlineError message={formError} /> : null}
-          {parsedAmount !== null && !hasSufficientBalance ? <InlineError message="Wallet USDC balance is below amount." /> : null}
-          <TxStatus state={txState} />
+          <div className="composer-section">
+            <div className="composer-section-heading">
+              <div className="composer-heading-icon" aria-hidden="true">
+                <CheckCircle size={19} weight="duotone" />
+              </div>
+              <div>
+                <h2>What counts as done?</h2>
+                <p>Write criteria the worker can prove and you can verify.</p>
+              </div>
+            </div>
+            <Field label="Acceptance criteria" helper="Be specific about links, files, screenshots, or handoff materials.">
+              <textarea
+                value={criteriaURI}
+                onChange={(event) => setCriteriaURI(event.target.value)}
+                placeholder="The page is live, works on mobile, and includes the source repository and handoff notes."
+                rows={4}
+              />
+            </Field>
 
-          <div className="action-strip">
+            <details className="optional-context">
+              <summary>
+                <span>
+                  <FileText size={17} weight="duotone" aria-hidden="true" />
+                  Add brief or reference link
+                </span>
+                <span className="optional-label">Optional</span>
+                <CaretDown size={16} weight="bold" aria-hidden="true" />
+              </summary>
+              <Field label="Project context" helper="Add a short brief, reference URL, or metadata URI.">
+                <textarea
+                  value={metadataURI}
+                  onChange={(event) => setMetadataURI(event.target.value)}
+                  placeholder="Context that will help the worker deliver the right result."
+                  rows={3}
+                />
+              </Field>
+            </details>
+          </div>
+
+          <div className="composer-section composer-people">
+            <div className="composer-section-heading">
+              <div className="composer-heading-icon" aria-hidden="true">
+                <UserCircle size={19} weight="duotone" />
+              </div>
+              <div>
+                <h2>People</h2>
+                <p>Choose the worker and an independent dispute resolver.</p>
+              </div>
+            </div>
+            <div className="people-grid">
+              <div className="role-field">
+                <div className="role-field-title">
+                  <UserCircle size={18} weight="duotone" aria-hidden="true" />
+                  <span>Worker</span>
+                </div>
+                <Field label="Receives payment after approval">
+                  <input
+                    autoComplete="off"
+                    className="address-input"
+                    value={beneficiary}
+                    onChange={(event) => setBeneficiary(event.target.value)}
+                    placeholder="0x worker address"
+                  />
+                </Field>
+              </div>
+              <div className="role-field">
+                <div className="role-field-title">
+                  <Gavel size={18} weight="duotone" aria-hidden="true" />
+                  <span>Resolver</span>
+                </div>
+                <Field label="Can split funds only after a dispute">
+                  <input
+                    autoComplete="off"
+                    className="address-input"
+                    value={arbiter}
+                    onChange={(event) => setArbiter(event.target.value)}
+                    placeholder="0x resolver address"
+                  />
+                </Field>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside className="settlement-rail">
+          <div className="agreement-preview">
+            <div className="preview-heading">
+              <span>Agreement preview</span>
+              <span className="status-pill">Created</span>
+            </div>
+            <strong className={title.trim() ? "preview-title" : "preview-title preview-placeholder"}>
+              {title.trim() || "Untitled work agreement"}
+            </strong>
+            <div className="preview-value" aria-live="polite">
+              <strong>{parsedAmount === null ? "0" : formatUnits(parsedAmount, usdcDecimals)}</strong>
+              <span>USDC</span>
+            </div>
+            <div className="preview-facts">
+              <div>
+                <CalendarBlank size={16} weight="duotone" aria-hidden="true" />
+                <span>{deadlineReady ? formatDate(BigInt(Math.floor(new Date(deadline).getTime() / 1000))) : "Set a future deadline"}</span>
+              </div>
+              <div>
+                <UserCircle size={16} weight="duotone" aria-hidden="true" />
+                <span>{isAddress(beneficiary) ? `Worker ${formatAddress(beneficiary as Address)}` : "Add worker address"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="composer-readiness" aria-label="Agreement readiness">
+            <ReadinessItem label="Work terms" ready={workReady} />
+            <ReadinessItem label="People" ready={peopleReady} />
+            <ReadinessItem label="Payment and deadline" ready={settlementReady} />
+            <ReadinessItem label={isConnected ? "Wallet and balance" : "Connect wallet"} ready={walletReady} />
+          </div>
+
+          <div className="composer-feedback">
+            {formStarted && formError ? <InlineError message={formError} /> : null}
+            {isConnected && parsedAmount !== null && !hasSufficientBalance ? (
+              <InlineError message="Your USDC balance is below this payment." />
+            ) : null}
+            <TxStatus state={txState} />
+          </div>
+
+          <div className="funding-state">
+            <span>Available</span>
+            <strong>{isConnected ? formatUsdc(balance) : "Wallet not connected"}</strong>
+          </div>
+
+          <div className="composer-actions">
+            {!amountReady ? (
+              <div className="allowance-pending">
+                <ShieldCheck size={18} weight="duotone" aria-hidden="true" />
+                <span>Set payment to continue</span>
+              </div>
+            ) : needsApproval ? (
+              <button
+                className="secondary-button approval-button"
+                disabled={!contractsConfigured || !isConnected || !hasSufficientBalance || Boolean(formError) || isPending}
+                type="button"
+                onClick={approve}
+              >
+                <ShieldCheck size={18} weight="duotone" />
+                {isPending ? "Confirm in wallet" : isConnected ? "Approve USDC" : "Connect wallet to continue"}
+              </button>
+            ) : (
+              <div className="allowance-ready">
+                <CheckCircle size={18} weight="fill" aria-hidden="true" />
+                <span>USDC approval ready</span>
+              </div>
+            )}
             <button
-              className="secondary-button"
-              disabled={
-                !contractsConfigured ||
-                !isConnected ||
-                !needsApproval ||
-                !hasSufficientBalance ||
-                Boolean(formError) ||
-                isPending
-              }
-              type="button"
-              onClick={approve}
-            >
-              <ShieldCheck size={18} weight="duotone" />
-              {isPending ? "Confirm in wallet" : needsApproval ? "Approve USDC" : "USDC approved"}
-            </button>
-            <button
-              className="primary-button"
+              className="primary-button create-submit"
               disabled={
                 !contractsConfigured ||
                 !isConnected ||
@@ -1010,36 +1237,19 @@ function CreateAgreementPage() {
               {isPending ? "Confirm in wallet" : "Create agreement"}
             </button>
           </div>
-        </section>
 
-        <aside className="create-summary">
-          <div className="summary-balance">
-            <span>Wallet balance</span>
-            <strong>{isConnected ? formatUsdc(balance) : "Connect wallet"}</strong>
-          </div>
-          <div className="summary-amount">
-            <span>Agreement value</span>
-            <strong>{parsedAmount === null ? "0 USDC" : formatUsdc(parsedAmount)}</strong>
-          </div>
-          <div className="readiness-list" aria-label="Agreement readiness">
-            <div className={isConnected ? "ready" : ""}>
-              <CheckCircle size={18} weight={isConnected ? "fill" : "regular"} />
-              <span>Wallet connected</span>
-            </div>
-            <div className={!formError ? "ready" : ""}>
-              <CheckCircle size={18} weight={!formError ? "fill" : "regular"} />
-              <span>Agreement complete</span>
-            </div>
-            <div className={!needsApproval && hasSufficientBalance ? "ready" : ""}>
-              <CheckCircle size={18} weight={!needsApproval && hasSufficientBalance ? "fill" : "regular"} />
-              <span>USDC allowance ready</span>
-            </div>
-          </div>
-          <p className="summary-note">
-            Funds move to the Handsel contract when the agreement is created. Release still requires proof and client approval.
-          </p>
+          <p className="settlement-note">USDC is held by the Handsel contract. Release requires submitted proof and your approval.</p>
         </aside>
       </div>
+    </div>
+  );
+}
+
+function ReadinessItem({ label, ready }: { label: string; ready: boolean }) {
+  return (
+    <div className={ready ? "readiness-item ready" : "readiness-item"}>
+      <CheckCircle size={17} weight={ready ? "fill" : "regular"} aria-hidden="true" />
+      <span>{label}</span>
     </div>
   );
 }

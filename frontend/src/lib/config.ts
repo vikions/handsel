@@ -1,6 +1,7 @@
 import { createConfig } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { defineChain, fallback, http, isAddress, zeroAddress } from "viem";
+import { createCirclePasskeyProvider, type CircleWalletMode } from "./circleWallet";
 
 const rawChainId = import.meta.env.VITE_ARC_TESTNET_CHAIN_ID;
 const parsedChainId = Number(rawChainId);
@@ -50,9 +51,32 @@ export const arcTestnet = defineChain({
   },
 });
 
+export const circleClientKey = import.meta.env.VITE_CIRCLE_CLIENT_KEY || "";
+export const circleClientUrl = import.meta.env.VITE_CIRCLE_CLIENT_URL || "";
+export const circleWalletConfigured = Boolean(circleClientKey && circleClientUrl);
+export const circlePasskeyProvider = createCirclePasskeyProvider({
+  chain: arcTestnet,
+  clientKey: circleClientKey,
+  clientUrl: circleClientUrl,
+});
+
+export function selectCircleWalletMode(mode: CircleWalletMode) {
+  circlePasskeyProvider.setMode(mode);
+}
+
 export const wagmiConfig = createConfig({
   chains: [arcTestnet],
-  connectors: [injected({ shimDisconnect: true })],
+  connectors: [
+    injected({ shimDisconnect: true }),
+    injected({
+      shimDisconnect: true,
+      target: {
+        id: "circlePasskey",
+        name: "Circle Passkey",
+        provider: circlePasskeyProvider as never,
+      },
+    }),
+  ],
   transports: {
     [arcTestnet.id]: fallback(arcRpcUrls.map((url) => http(url))),
   },

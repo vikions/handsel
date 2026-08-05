@@ -5,6 +5,7 @@ const contractAddress =
   process.env.HANDSEL_CONTRACT_ADDRESS || "0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867";
 const blockchain = "ARC-TESTNET";
 const apiBaseUrl = "https://api.circle.com";
+const webhookUrl = process.env.HANDSEL_WEBHOOK_URL;
 
 const eventSignatures = [
   "AgreementCreated(uint256,address,address,address,uint256,uint256,string,string,string)",
@@ -49,6 +50,30 @@ for (const eventSignature of eventSignatures) {
 }
 
 console.log(`Circle Contracts monitoring is ready for ${contractAddress} on ${blockchain}.`);
+
+if (webhookUrl) {
+  const url = new URL(webhookUrl);
+  if (url.protocol !== "https:") throw new Error("HANDSEL_WEBHOOK_URL must use HTTPS.");
+
+  const existingSubscriptions = await circleRequest("/v2/notifications/subscriptions");
+  const subscriptions = existingSubscriptions.data?.subscriptions ?? [];
+  const existingSubscription = subscriptions.find(
+    (subscription) => subscription.endpoint === webhookUrl && subscription.enabled !== false,
+  );
+
+  if (existingSubscription) {
+    console.log(`Existing webhook: ${webhookUrl}`);
+  } else {
+    const created = await circleRequest("/v2/notifications/subscriptions", {
+      method: "POST",
+      body: JSON.stringify({ endpoint: webhookUrl, notificationTypes: ["contracts.eventLog"] }),
+    });
+    const subscription = created.data?.subscription;
+    console.log(`Created webhook: ${webhookUrl}${subscription?.id ? ` (${subscription.id})` : ""}`);
+  }
+} else {
+  console.log("Webhook not configured: set HANDSEL_WEBHOOK_URL after the API is live.");
+}
 
 async function circleRequest(path, options = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
