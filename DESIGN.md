@@ -8,6 +8,7 @@
 
 - Landing: Persuade. Instrument Serif may lead, with restrained atmospheric proof cards.
 - Dashboard, Create, Agreement, Receipt: Operate. Manrope leads; motion communicates state only.
+- Work Passport: Read. Objective wallet history and settlement evidence lead; no subjective reputation score.
 - Analytics: Read. Large data may use IBM Plex Mono, but explanatory content stays compact.
 
 ## Palette

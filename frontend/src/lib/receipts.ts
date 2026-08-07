@@ -1,5 +1,3 @@
-import type { ValidationResult } from "./aiValidation";
-
 export type ReceiptAgreement = {
   id: bigint;
   client: string;
@@ -19,21 +17,32 @@ export type Receipt = {
   facts: Array<{ label: string; value: string }>;
 };
 
-export function buildReceipt(agreement: ReceiptAgreement, validation: ValidationResult | null): Receipt {
+export function buildReceipt(agreement: ReceiptAgreement): Receipt {
   return {
-    heading: `Handsel receipt #${agreement.id.toString()}`,
+    heading: agreement.title || `Handsel agreement #${agreement.id.toString()}`,
     status: agreement.statusLabel,
     parties: [
       { label: "Client", value: agreement.client },
-      { label: "Beneficiary", value: agreement.beneficiary },
-      { label: "Arbiter", value: agreement.arbiter },
+      { label: "Worker", value: agreement.beneficiary },
+      { label: "Resolver", value: agreement.arbiter },
     ],
     facts: [
-      { label: "Agreement", value: agreement.title || "Untitled agreement" },
+      { label: "Agreement ID", value: `#${agreement.id.toString()}` },
       { label: "Amount", value: agreement.amountLabel },
+      { label: "Settlement", value: settlementDescription(agreement.statusLabel, Boolean(agreement.proofURI)) },
       { label: "Criteria", value: agreement.criteriaURI || "No criteria supplied" },
       { label: "Proof", value: agreement.proofURI || "No proof submitted" },
-      { label: "AI recommendation", value: validation?.recommendation.replace("_", " ") ?? "Not reviewed" },
     ],
   };
+}
+
+function settlementDescription(status: string, hasProof: boolean) {
+  if (status === "Completed") {
+    return hasProof ? "Client approved submitted proof and released USDC" : "Client used the manual release path";
+  }
+  if (status === "Resolved") return "Resolver distributed funds after a dispute";
+  if (status === "Refunded") return "Expired agreement refunded to the client";
+  if (status === "Cancelled") return "Client cancelled before worker acceptance";
+  if (status === "Disputed") return "Awaiting resolver decision";
+  return "Settlement pending";
 }

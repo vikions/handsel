@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
+  ArrowSquareOut,
   Brain,
+  Briefcase,
   CalendarBlank,
   CaretDown,
   CheckCircle,
@@ -11,6 +13,7 @@ import {
   FileText,
   Fingerprint,
   Gavel,
+  IdentificationCard,
   NotePencil,
   Plus,
   Receipt,
@@ -32,7 +35,7 @@ import {
   useReadContracts,
   useWriteContract,
 } from "wagmi";
-import { formatUnits, isAddress, parseUnits, zeroAddress, type Address, type Hash } from "viem";
+import { formatUnits, getAddress, isAddress, parseUnits, zeroAddress, type Address, type Hash } from "viem";
 import {
   circleWalletConfigured,
   handselAddress,
@@ -77,7 +80,7 @@ const disputeResolutionPresets = [
   },
   {
     label: "Half completed",
-    detail: "Split escrow 50/50 between both sides.",
+    detail: "Split the settlement 50/50 between both sides.",
     clientBps: 5000,
   },
   {
@@ -110,11 +113,14 @@ const landingTaskTickerItems = [
   { title: "Indie game teaser site", amount: "5.75" },
 ] as const;
 
+const arcScanContractUrl = "https://testnet.arcscan.app/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867";
+
 type Route =
   | { page: "landing" }
   | { page: "analytics" }
   | { page: "dashboard" }
   | { page: "create" }
+  | { page: "profile"; address: Address }
   | { page: "detail"; agreementId: bigint }
   | { page: "receipt"; agreementId: bigint };
 
@@ -179,6 +185,7 @@ export function App() {
       dashboard: "Agreements",
       detail: "Agreement",
       landing: "Proof-based settlement",
+      profile: "Work Passport",
       receipt: "Settlement receipt",
     };
     document.title = `${routeTitles[route.page]} | Handsel`;
@@ -197,6 +204,7 @@ export function App() {
         {route.page === "analytics" ? <AnalyticsPage /> : null}
         {route.page === "dashboard" ? <Dashboard /> : null}
         {route.page === "create" ? <CreateAgreementPage /> : null}
+        {route.page === "profile" ? <WorkPassportPage address={route.address} /> : null}
         {route.page === "detail" ? <AgreementDetailPage agreementId={route.agreementId} /> : null}
         {route.page === "receipt" ? <ReceiptPage agreementId={route.agreementId} /> : null}
       </main>
@@ -218,6 +226,10 @@ function useHashRoute(): Route {
   if (normalized === "/analytics" || normalized === "/overview") return { page: "analytics" };
   if (normalized === "/dashboard") return { page: "dashboard" };
   if (normalized === "/create") return { page: "create" };
+  if (normalized.startsWith("/profile/")) {
+    const address = normalized.replace("/profile/", "");
+    return isAddress(address) ? { page: "profile", address: getAddress(address) } : { page: "dashboard" };
+  }
   if (normalized.startsWith("/agreements/")) {
     return routeWithId(normalized.replace("/agreements/", ""), "detail");
   }
@@ -258,19 +270,29 @@ function LandingPage() {
         </a>
       </header>
       <main className="landing-hero">
-        <p className="landing-kicker">Built on Arc technology</p>
+        <p className="landing-kicker">Agree. Prove. Settle.</p>
         <h1>
-          <span className="headline-line">Proof-based settlement</span>
-          <span className="headline-line headline-muted">for real work.</span>
+          <span className="headline-line">Proof-based USDC settlement</span>
+          <span className="headline-line headline-muted">for real digital work.</span>
         </h1>
-        <p className="landing-copy">Define the work. Hold the payment. Submit proof. Release on approval.</p>
+        <p className="landing-copy">
+          Create an agreement, commit USDC, submit proof, settle the work, and build a verifiable work history on Arc.
+        </p>
         <div className="landing-actions">
-          <a className="landing-primary" href="#/analytics">
-            View Analytics
+          <a className="landing-primary" href="#/create">
+            Create agreement
           </a>
-          <a className="landing-secondary" href="#/create">
-            Create Agreement
+          <a className="landing-secondary" href="#/analytics">
+            View public activity
           </a>
+        </div>
+        <div className="landing-trust" aria-label="Product verification">
+          <span><CheckCircle size={15} weight="fill" /> Live on Arc Testnet</span>
+          <span><CurrencyCircleDollar size={15} weight="duotone" /> USDC settlement</span>
+          <a href={arcScanContractUrl} rel="noreferrer" target="_blank">
+            <ShieldCheck size={15} weight="duotone" /> Verified contract
+          </a>
+          <a href="#/analytics"><Receipt size={15} weight="duotone" /> Public settlement history</a>
         </div>
       </main>
       <LandingTaskTicker />
@@ -437,6 +459,12 @@ function ConnectButton() {
   const browserConnector = connectors.find((connector) => connector.id !== "circlePasskey");
   const circleConnector = connectors.find((connector) => connector.id === "circlePasskey");
 
+  useEffect(() => {
+    const closeMenu = () => setOpen(false);
+    window.addEventListener("hashchange", closeMenu);
+    return () => window.removeEventListener("hashchange", closeMenu);
+  }, []);
+
   if (isConnected) {
     return (
       <button className="wallet-button" type="button" onClick={() => disconnect()}>
@@ -456,7 +484,7 @@ function ConnectButton() {
         <div className="wallet-menu">
           <button type="button" onClick={() => browserConnector && connect({ connector: browserConnector })}>
             <Wallet size={18} />
-            <span><strong>Browser wallet</strong><small>MetaMask or injected wallet</small></span>
+            <span><strong>Browser wallet</strong><small>MetaMask or another installed wallet</small></span>
           </button>
           <button
             type="button"
@@ -467,7 +495,7 @@ function ConnectButton() {
             }}
           >
             <Fingerprint size={18} />
-            <span><strong>Circle passkey</strong><small>Use an existing smart account</small></span>
+            <span><strong>Circle passkey</strong><small>Sign in with an existing device passkey</small></span>
           </button>
           <button
             type="button"
@@ -478,8 +506,13 @@ function ConnectButton() {
             }}
           >
             <Plus size={18} />
-            <span><strong>Create passkey wallet</strong><small>User-controlled on Arc</small></span>
+            <span><strong>Create passkey wallet</strong><small>No wallet extension required</small></span>
           </button>
+          <div className={circleWalletConfigured ? "wallet-menu-note configured" : "wallet-menu-note"}>
+            {circleWalletConfigured
+              ? "Circle passkey transactions use sponsored Arc Testnet network fees."
+              : "Circle passkey is implemented and activates when this deployment receives its Circle Client Key."}
+          </div>
           {error ? <small className="wallet-menu-error">{error.message}</small> : null}
         </div>
       ) : null}
@@ -729,10 +762,18 @@ function Dashboard() {
           <h1>Work agreements</h1>
           <p>One place for committed funds, submitted proof, and settlement.</p>
         </div>
-        <a className="primary-link" href="#/create">
-          <Plus size={18} weight="bold" />
-          Create agreement
-        </a>
+        <div className="page-heading-actions">
+          {address ? (
+            <a className="secondary-link" href={`#/profile/${address}`}>
+              <IdentificationCard size={18} weight="duotone" />
+              Work Passport
+            </a>
+          ) : null}
+          <a className="primary-link" href="#/create">
+            <Plus size={18} weight="bold" />
+            Create agreement
+          </a>
+        </div>
       </section>
 
       <section className="dashboard-stats" aria-label="Protocol stats">
@@ -746,8 +787,8 @@ function Dashboard() {
       <section className="activity-panel" id="user-agreements">
         <div className="section-heading">
           <div>
-            <h2>Wallet agreements</h2>
-            <p>Agreements where this wallet is client, freelancer, or arbiter.</p>
+            <h2>My work activity</h2>
+            <p>Work organized by what needs attention, what is active, and what has settled.</p>
           </div>
         </div>
         <UserAgreements />
@@ -755,11 +796,6 @@ function Dashboard() {
 
       {activityApiConfigured ? <CircleActivity address={address} /> : null}
 
-      <section className="agent-roadmap" aria-label="Agent task mode roadmap">
-        <span>Agent task mode</span>
-        <p>The same agreement lifecycle is designed to support API-created tasks in a future release.</p>
-        <strong>Roadmap</strong>
-      </section>
     </div>
   );
 }
@@ -800,7 +836,7 @@ function CircleActivity({ address }: { address?: Address }) {
               <span className="circle-event-mark" />
               <div>
                 <strong>{formatEventName(event.event_name)}</strong>
-                <small>Agreement #{event.agreement_id} · {new Date(event.confirmed_at).toLocaleString()}</small>
+                <small>Agreement #{event.agreement_id} / {new Date(event.confirmed_at).toLocaleString()}</small>
               </div>
               <ArrowRight size={16} weight="bold" />
             </a>
@@ -824,24 +860,22 @@ function Metric({ label, value, loading }: { label: string; value: string; loadi
   );
 }
 
-function UserAgreements() {
-  const { address, isConnected } = useAccount();
-  const [limit, setLimit] = useState(25n);
-
+function useAddressAgreements(address?: Address, enabled = true) {
   const userCountRead = useReadContract({
     address: handselAddress,
     abi: handselAbi,
     functionName: "getUserAgreementCount",
     args: [address ?? zeroAddress],
-    query: { enabled: contractsConfigured && isConnected && Boolean(address) },
+    query: { enabled: contractsConfigured && enabled && Boolean(address) },
   });
+  const count = typeof userCountRead.data === "bigint" ? userCountRead.data : 0n;
 
   const userIdsRead = useReadContract({
     address: handselAddress,
     abi: handselAbi,
     functionName: "getUserAgreementIds",
-    args: [address ?? zeroAddress, 0n, limit],
-    query: { enabled: contractsConfigured && isConnected && Boolean(address) },
+    args: [address ?? zeroAddress, 0n, count || 1n],
+    query: { enabled: contractsConfigured && enabled && Boolean(address) && count > 0n },
   });
 
   const ids = useMemo(() => (Array.isArray(userIdsRead.data) ? userIdsRead.data : []), [userIdsRead.data]);
@@ -863,66 +897,274 @@ function UserAgreements() {
         .filter((agreement): agreement is AgreementRecord => Boolean(agreement)),
     [agreementsRead.data, ids],
   );
-  const userAgreementCount = typeof userCountRead.data === "bigint" ? userCountRead.data : BigInt(ids.length);
+  const error = userCountRead.error ?? userIdsRead.error ?? agreementsRead.error;
+  const isLoading =
+    userCountRead.isLoading || (count > 0n && userIdsRead.isLoading) || (ids.length > 0 && agreementsRead.isLoading);
+
+  return { agreements, count, error, isLoading };
+}
+
+function UserAgreements() {
+  const { address, isConnected } = useAccount();
+  const activity = useAddressAgreements(address, isConnected);
 
   if (!isConnected) {
-    return <EmptyState title="Connect a wallet" body="Your client and freelancer agreements will appear here." />;
+    return <EmptyState title="Connect a wallet" body="Your client, worker, and resolver activity will appear here." />;
   }
 
-  if (userCountRead.isLoading || userIdsRead.isLoading || agreementsRead.isLoading) return <AgreementListSkeleton />;
+  if (activity.isLoading) return <AgreementListSkeleton />;
 
-  if (userCountRead.error || userIdsRead.error || agreementsRead.error) {
-    return (
-      <InlineError
-        message={(userCountRead.error ?? userIdsRead.error ?? agreementsRead.error)?.message ?? "Unable to load agreements."}
-      />
-    );
+  if (activity.error) {
+    return <InlineError message={activity.error.message || "Unable to load agreements."} />;
   }
 
-  if (agreements.length === 0) {
+  if (activity.agreements.length === 0) {
     return <EmptyState title="No agreements yet" body="Create the first deal, then come back here to track it." />;
   }
 
-  return (
-    <>
-      <div className="agreement-list">
-        {agreements.map((agreement) => {
-          const connectedAddress = address?.toLowerCase();
-          const role =
-            connectedAddress === agreement.client.toLowerCase()
-              ? "Client"
-              : connectedAddress === agreement.beneficiary.toLowerCase()
-                ? "Freelancer"
-                : "Arbiter";
+  const awaiting = activity.agreements.filter((agreement) => agreementNeedsAction(agreement, address));
+  const active = activity.agreements.filter(
+    (agreement) => [0, 1, 2, 4].includes(agreement.status) && !agreementNeedsAction(agreement, address),
+  );
+  const completed = activity.agreements.filter((agreement) => agreement.status === 3 || agreement.status === 5);
+  const history = activity.agreements.filter((agreement) => agreement.status === 6 || agreement.status === 7);
 
-          return (
-            <a className="agreement-row" href={`#/agreements/${agreement.id.toString()}`} key={agreement.id.toString()}>
-              <div className="agreement-identity">
-                <div className="agreement-row-labels">
-                  <span className={`status-pill status-${statusLabels[agreement.status]?.toLowerCase() ?? "unknown"}`}>
-                    {statusLabels[agreement.status] ?? "Unknown"}
-                  </span>
-                  <span className="agreement-role">{role}</span>
-                  <span className="agreement-number">#{agreement.id.toString()}</span>
-                </div>
-                <strong>{agreement.title || `Agreement #${agreement.id.toString()}`}</strong>
-                <p>{agreement.criteriaURI || agreement.metadataURI || "Acceptance criteria not supplied"}</p>
-              </div>
-              <div className="row-amount">
-                <strong>{formatUsdc(agreement.amount)}</strong>
-                <span>Due {formatDate(agreement.deadline)}</span>
-                <ArrowRight size={17} weight="bold" aria-hidden="true" />
-              </div>
-            </a>
-          );
-        })}
+  return (
+    <div className="work-hub">
+      <AgreementGroup
+        address={address!}
+        agreements={awaiting}
+        empty="Nothing needs your action right now."
+        title="Awaiting my action"
+        urgent
+      />
+      <AgreementGroup address={address!} agreements={active} title="Active work" />
+      <AgreementGroup address={address!} agreements={completed} title="Completed work" />
+      <AgreementGroup address={address!} agreements={history} title="Other history" />
+    </div>
+  );
+}
+
+function AgreementGroup({
+  address,
+  agreements,
+  empty,
+  title,
+  urgent,
+}: {
+  address: Address;
+  agreements: AgreementRecord[];
+  empty?: string;
+  title: string;
+  urgent?: boolean;
+}) {
+  if (agreements.length === 0 && !empty) return null;
+
+  return (
+    <section className={urgent ? "work-group urgent" : "work-group"}>
+      <div className="work-group-heading">
+        <h3>{title}</h3>
+        <span>{agreements.length}</span>
       </div>
-      {BigInt(agreements.length) < userAgreementCount ? (
-        <button className="load-more-button" type="button" onClick={() => setLimit((current) => current + 25n)}>
-          Load more agreements
-        </button>
-      ) : null}
-    </>
+      {agreements.length ? (
+        <div className="agreement-list">
+          {agreements.map((agreement) => (
+            <AgreementRow address={address} agreement={agreement} key={agreement.id.toString()} urgent={urgent} />
+          ))}
+        </div>
+      ) : (
+        <p className="work-group-empty">{empty}</p>
+      )}
+    </section>
+  );
+}
+
+function AgreementRow({
+  address,
+  agreement,
+  urgent,
+}: {
+  address: Address;
+  agreement: AgreementRecord;
+  urgent?: boolean;
+}) {
+  const role = agreementRole(agreement, address);
+  const nextAction = urgent ? agreementActionLabel(agreement, role) : undefined;
+
+  return (
+    <a
+      className={urgent ? "agreement-row agreement-row-urgent" : "agreement-row"}
+      href={`#/agreements/${agreement.id.toString()}`}
+    >
+      <div className="agreement-identity">
+        <div className="agreement-row-labels">
+          <span className={`status-pill status-${statusLabels[agreement.status]?.toLowerCase() ?? "unknown"}`}>
+            {statusLabels[agreement.status] ?? "Unknown"}
+          </span>
+          <span className="agreement-role">{role}</span>
+          <span className="agreement-number">#{agreement.id.toString()}</span>
+        </div>
+        <strong>{agreement.title || `Agreement #${agreement.id.toString()}`}</strong>
+        <p>{nextAction || agreement.criteriaURI || agreement.metadataURI || "Acceptance criteria not supplied"}</p>
+      </div>
+      <div className="row-amount">
+        <strong>{formatUsdc(agreement.amount)}</strong>
+        <span>{agreement.status === 3 || agreement.status === 5 ? "Settled" : `Due ${formatDate(agreement.deadline)}`}</span>
+        <ArrowRight size={17} weight="bold" aria-hidden="true" />
+      </div>
+    </a>
+  );
+}
+
+function agreementRole(agreement: AgreementRecord, address: Address) {
+  const normalized = address.toLowerCase();
+  if (normalized === agreement.client.toLowerCase()) return "Client";
+  if (normalized === agreement.beneficiary.toLowerCase()) return "Worker";
+  return "Resolver";
+}
+
+function agreementNeedsAction(agreement: AgreementRecord, address?: Address) {
+  if (!address) return false;
+  const role = agreementRole(agreement, address);
+  return (
+    (role === "Worker" && (agreement.status === 0 || agreement.status === 1)) ||
+    (role === "Client" && agreement.status === 2) ||
+    (role === "Resolver" && agreement.status === 4)
+  );
+}
+
+function agreementActionLabel(agreement: AgreementRecord, role: string) {
+  if (role === "Worker" && agreement.status === 0) return "Accept this agreement";
+  if (role === "Worker" && agreement.status === 1) return "Submit proof of completed work";
+  if (role === "Client" && agreement.status === 2) return "Review proof and decide settlement";
+  if (role === "Resolver" && agreement.status === 4) return "Resolve the disputed settlement";
+  return "Open agreement";
+}
+
+function WorkPassportPage({ address }: { address: Address }) {
+  const activity = useAddressAgreements(address);
+  const indexedActivity = useQuery({
+    queryKey: ["passport-activity", address],
+    queryFn: () => getPersonalActivity(address),
+    enabled: activityApiConfigured,
+  });
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timeout = window.setTimeout(() => setCopied(false), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [copied]);
+
+  if (activity.isLoading) return <DetailSkeleton />;
+  if (activity.error) return <InlineError message={activity.error.message || "Unable to load work history."} />;
+
+  const agreements = activity.agreements;
+  const completed = agreements
+    .filter((agreement) => agreement.status === 3 || agreement.status === 5)
+    .sort((left, right) => Number(right.completedAt - left.completedAt));
+  const totalSettled = completed.reduce((total, agreement) => total + agreement.amount, 0n);
+  const asClient = agreements.filter((agreement) => agreement.client.toLowerCase() === address.toLowerCase()).length;
+  const asWorker = agreements.filter((agreement) => agreement.beneficiary.toLowerCase() === address.toLowerCase()).length;
+  const asResolver = agreements.filter((agreement) => agreement.arbiter.toLowerCase() === address.toLowerCase()).length;
+  const disputes = agreements.filter((agreement) => agreement.status === 4 || agreement.status === 5).length;
+  const resolvedDisputes = agreements.filter((agreement) => agreement.status === 5).length;
+
+  return (
+    <div className="passport-page">
+      <section className="passport-heading">
+        <div>
+          <span className="page-kicker">Handsel Work Passport</span>
+          <h1>Verifiable work history.</h1>
+          <p>Objective agreement and settlement activity recorded by the Handsel contract on Arc Testnet.</p>
+        </div>
+        <div className="passport-heading-actions">
+          <button
+            className="secondary-button"
+            onClick={() => {
+              void navigator.clipboard.writeText(window.location.href);
+              setCopied(true);
+            }}
+            type="button"
+          >
+            <Copy size={17} weight="bold" />
+            {copied ? "Link copied" : "Copy profile link"}
+          </button>
+          <a className="primary-link" href={arcScanContractUrl} rel="noreferrer" target="_blank">
+            Verified contract
+            <ArrowSquareOut size={17} weight="bold" />
+          </a>
+        </div>
+      </section>
+
+      <section className="passport-identity" aria-label="Wallet identity">
+        <div className="passport-avatar" aria-hidden="true">
+          <IdentificationCard size={25} weight="duotone" />
+        </div>
+        <div>
+          <span>Wallet</span>
+          <strong>{formatAddress(address)}</strong>
+          <small>{address}</small>
+        </div>
+        <span className="passport-source"><CheckCircle size={15} weight="fill" /> Derived from onchain agreements</span>
+      </section>
+
+      <section className="passport-metrics" aria-label="Work history metrics">
+        <PassportMetric label="Completed agreements" value={completed.length.toString()} />
+        <PassportMetric label="USDC settled" value={`${formatCompactUsdc(totalSettled)} USDC`} />
+        <PassportMetric label="As client" value={asClient.toString()} />
+        <PassportMetric label="As worker" value={asWorker.toString()} />
+        <PassportMetric label="As resolver" value={asResolver.toString()} />
+        <PassportMetric label="Disputes / resolved" value={`${disputes} / ${resolvedDisputes}`} />
+      </section>
+
+      <section className="passport-history">
+        <div className="section-heading">
+          <div>
+            <h2>Completed work</h2>
+            <p>Settlements completed by client approval or resolver decision.</p>
+          </div>
+          {activityApiConfigured && indexedActivity.data ? (
+            <span className="indexed-signal">
+              <span /> {indexedActivity.data.events.length} indexed events
+            </span>
+          ) : null}
+        </div>
+        {completed.length ? (
+          <div className="passport-work-list">
+            {completed.slice(0, 12).map((agreement) => (
+              <a className="passport-work-row" href={`#/receipts/${agreement.id.toString()}`} key={agreement.id.toString()}>
+                <div>
+                  <span>{agreementRole(agreement, address)} / Agreement #{agreement.id.toString()}</span>
+                  <strong>{agreement.title || `Agreement #${agreement.id.toString()}`}</strong>
+                  <small>{agreement.proofURI ? "Proof submitted" : "Settled without submitted proof"}</small>
+                </div>
+                <div>
+                  <strong>{formatUsdc(agreement.amount)}</strong>
+                  <span>{agreement.completedAt > 0n ? formatDate(agreement.completedAt) : statusLabels[agreement.status]}</span>
+                </div>
+                <ArrowRight size={17} weight="bold" aria-hidden="true" />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="No completed work yet" body="Completed Handsel settlements will appear here automatically." />
+        )}
+      </section>
+
+      <p className="passport-disclaimer">
+        This passport reports Handsel agreement activity only. It is not an identity check, credit score, or subjective rating.
+      </p>
+    </div>
+  );
+}
+
+function PassportMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="passport-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -1336,8 +1578,8 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
 
         <div className="detail-grid">
           <DetailItem label="Client" value={agreement.client} copy />
-          <DetailItem label="Beneficiary" value={agreement.beneficiary} copy />
-          <DetailItem label="Arbiter" value={agreement.arbiter} copy />
+          <DetailItem label="Worker" value={agreement.beneficiary} copy />
+          <DetailItem label="Resolver" value={agreement.arbiter} copy />
           <DetailItem label="Deadline" value={formatDate(agreement.deadline)} />
           <DetailItem label="Created" value={formatDate(agreement.createdAt)} />
           <DetailItem label="Submitted" value={agreement.submittedAt > 0n ? formatDate(agreement.submittedAt) : "No proof yet"} />
@@ -1463,7 +1705,7 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
             <div className="resolve-summary">
               <Scales size={18} weight="duotone" />
               <div>
-                <strong>Resolve escrow split</strong>
+                <strong>Resolve settlement split</strong>
                 <p>Choose how the locked {formatUsdc(agreement.amount)} should be distributed.</p>
               </div>
             </div>
@@ -1481,7 +1723,7 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
                     <strong>{preset.label}</strong>
                     <span>{preset.detail}</span>
                     <small>
-                      Worker: {formatSplitAmount(workerBps)} · Client: {formatSplitAmount(preset.clientBps)}
+                      Worker: {formatSplitAmount(workerBps)} / Client: {formatSplitAmount(preset.clientBps)}
                     </small>
                   </button>
                 );
@@ -1509,8 +1751,7 @@ function SettlementReceiptSummary({
   agreement: AgreementRecord;
   validation: ValidationResult | null;
 }) {
-  const receipt = buildReceipt(
-    {
+  const receipt = buildReceipt({
       id: agreement.id,
       client: agreement.client,
       beneficiary: agreement.beneficiary,
@@ -1520,9 +1761,7 @@ function SettlementReceiptSummary({
       criteriaURI: agreement.criteriaURI,
       proofURI: agreement.proofURI,
       statusLabel: statusLabels[agreement.status] ?? "Unknown",
-    },
-    validation,
-  );
+    });
 
   return (
     <section className="metadata-panel receipt-summary">
@@ -1539,7 +1778,7 @@ function SettlementReceiptSummary({
       <div className="receipt-grid compact-grid">
         <DetailItem label="Status" value={receipt.status} />
         <DetailItem label="Amount" value={formatUsdc(agreement.amount)} />
-        <DetailItem label="AI recommendation" value={validation?.recommendation.replace("_", " ") ?? "Not reviewed"} />
+        <DetailItem label="Proof" value={agreement.proofURI ? "Submitted" : "Not submitted"} />
       </div>
     </section>
   );
@@ -1548,14 +1787,17 @@ function SettlementReceiptSummary({
 function ReceiptPage({ agreementId }: { agreementId: bigint }) {
   const agreementRead = useAgreementRead(agreementId);
   const agreement = useMemo(() => normalizeAgreement(agreementRead.data, agreementId), [agreementRead.data, agreementId]);
-  const validation = useMemo(() => loadValidationResult(agreementId), [agreementId]);
+  const indexedActivity = useQuery({
+    queryKey: ["receipt-activity", agreement?.client, agreementId.toString()],
+    queryFn: () => getPersonalActivity(agreement!.client),
+    enabled: activityApiConfigured && Boolean(agreement),
+  });
 
   if (agreementRead.isLoading) return <DetailSkeleton />;
   if (agreementRead.error) return <InlineError message={agreementRead.error.message} />;
   if (!agreement) return <EmptyState title="Receipt not found" body="Check the id and contract address." />;
 
-  const receipt = buildReceipt(
-    {
+  const receipt = buildReceipt({
       id: agreement.id,
       client: agreement.client,
       beneficiary: agreement.beneficiary,
@@ -1565,8 +1807,10 @@ function ReceiptPage({ agreementId }: { agreementId: bigint }) {
       criteriaURI: agreement.criteriaURI,
       proofURI: agreement.proofURI,
       statusLabel: statusLabels[agreement.status] ?? "Unknown",
-    },
-    validation,
+    });
+  const isSettled = agreement.status === 3 || agreement.status === 5;
+  const receiptEvents = (indexedActivity.data?.events ?? []).filter(
+    (event) => BigInt(event.agreement_id) === agreement.id,
   );
 
   return (
@@ -1577,15 +1821,34 @@ function ReceiptPage({ agreementId }: { agreementId: bigint }) {
       </a>
       <div className="detail-title">
         <div>
+          <span className="page-kicker">Public settlement receipt</span>
           <span className={`status-pill status-${receipt.status.toLowerCase()}`}>{receipt.status}</span>
           <h1>{receipt.heading}</h1>
         </div>
         <strong>{formatUsdc(agreement.amount)}</strong>
       </div>
       <p className="muted-copy">
-        Public status view for a proof-based service agreement. This receipt is a product record, not a legal
-        settlement document.
+        Verifiable Handsel agreement history derived from the deployed contract on Arc Testnet.
       </p>
+
+      <div className={isSettled ? "receipt-outcome settled" : "receipt-outcome"}>
+        {isSettled ? <CheckCircle size={22} weight="fill" /> : <ClockCountdown size={22} weight="duotone" />}
+        <div>
+          <strong>
+            {agreement.status === 3
+              ? "Work completed and USDC released"
+              : agreement.status === 5
+                ? "Dispute resolved and settlement completed"
+                : "Agreement settlement is still in progress"}
+          </strong>
+          <p>
+            {agreement.proofURI
+              ? "The worker submitted proof before settlement."
+              : "No proof submission is recorded for this agreement."}
+          </p>
+        </div>
+      </div>
+
       <div className="receipt-grid">
         {receipt.parties.map((item) => (
           <DetailItem key={item.label} label={item.label} value={item.value} copy />
@@ -1594,6 +1857,40 @@ function ReceiptPage({ agreementId }: { agreementId: bigint }) {
           <DetailItem key={item.label} label={item.label} value={item.value} />
         ))}
       </div>
+
+      <section className="receipt-verification">
+        <div className="section-heading compact">
+          <div>
+            <span className="eyebrow">Verification</span>
+            <h2>Check the onchain record</h2>
+          </div>
+          <a className="text-link" href={arcScanContractUrl} rel="noreferrer" target="_blank">
+            Verified contract <ArrowSquareOut size={16} weight="bold" />
+          </a>
+        </div>
+        {receiptEvents.length ? (
+          <div className="receipt-event-list">
+            {receiptEvents.slice(0, 8).map((event) => (
+              <a href={`https://testnet.arcscan.app/tx/${event.tx_hash}`} key={event.notification_id} rel="noreferrer" target="_blank">
+                <span>{formatEventName(event.event_name)}</span>
+                <small>{new Date(event.confirmed_at).toLocaleString()}</small>
+                <ArrowSquareOut size={15} weight="bold" />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="receipt-verification-note">
+            Agreement state is read directly from the verified contract. Indexed transaction links appear when the Circle activity service is configured.
+          </p>
+        )}
+      </section>
+
+      <div className="receipt-passport-links">
+        <a href={`#/profile/${agreement.client}`}><IdentificationCard size={17} weight="duotone" /> Client Work Passport</a>
+        <a href={`#/profile/${agreement.beneficiary}`}><Briefcase size={17} weight="duotone" /> Worker Work Passport</a>
+      </div>
+
+      <p className="receipt-legal-note">This public product record is not a regulated escrow receipt or legal settlement document.</p>
     </section>
   );
 }
@@ -1802,9 +2099,9 @@ function validateCreateForm({
   title: string;
 }) {
   if (!title.trim()) return "Enter an agreement title.";
-  if (!isAddress(beneficiary)) return "Enter a valid beneficiary address.";
-  if (!isAddress(arbiter)) return "Enter a valid arbiter address.";
-  if (beneficiary.toLowerCase() === arbiter.toLowerCase()) return "Beneficiary and arbiter must be different wallets.";
+  if (!isAddress(beneficiary)) return "Enter a valid worker address.";
+  if (!isAddress(arbiter)) return "Enter a valid resolver address.";
+  if (beneficiary.toLowerCase() === arbiter.toLowerCase()) return "Worker and resolver must be different wallets.";
   if (amount === null || amount <= 0n) return "Enter a positive USDC amount.";
   if (criteriaURI.trim().length < 10) return "Add clear acceptance criteria.";
   const deadlineMs = new Date(deadline).getTime();

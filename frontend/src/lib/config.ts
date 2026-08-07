@@ -8,10 +8,9 @@ const parsedChainId = Number(rawChainId);
 
 export const arcChainId =
   Number.isSafeInteger(parsedChainId) && parsedChainId > 0 ? parsedChainId : 31337;
-export const arcRpcUrl = import.meta.env.VITE_ARC_TESTNET_RPC_URL || "http://127.0.0.1:8545";
-export const arcFallbackRpcUrl =
-  import.meta.env.VITE_ARC_FALLBACK_RPC_URL || "https://rpc.blockdaemon.testnet.arc.network";
-const arcRpcUrls = [...new Set([arcFallbackRpcUrl, arcRpcUrl])];
+export const arcRpcUrl = import.meta.env.VITE_ARC_TESTNET_RPC_URL || "https://rpc.drpc.testnet.arc.io";
+export const arcFallbackRpcUrl = import.meta.env.VITE_ARC_FALLBACK_RPC_URL || "https://rpc.quicknode.testnet.arc.io";
+const arcRpcUrls = [...new Set([arcRpcUrl, arcFallbackRpcUrl].filter(Boolean))];
 
 function envAddress(value: string | undefined): `0x${string}` {
   return value && isAddress(value) ? value : zeroAddress;

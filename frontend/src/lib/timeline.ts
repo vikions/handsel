@@ -28,17 +28,17 @@ export function buildTimeline(agreement: TimelineAgreement, validation: Validati
       complete: agreement.createdAt > 0n,
     },
     {
-      label: "Beneficiary accepted",
-      detail: "Work can begin once the beneficiary accepts.",
+      label: "Worker accepted",
+      detail: "Work can begin once the worker accepts.",
       timestamp: agreement.acceptedAt,
       complete: agreement.acceptedAt > 0n,
     },
     {
-      label: isResolvedByArbiter && agreement.submittedAt === 0n ? "Delivery accepted by arbiter" : "Proof submitted",
+      label: isResolvedByArbiter && agreement.submittedAt === 0n ? "Delivery accepted by resolver" : "Proof submitted",
       detail:
         isResolvedByArbiter && agreement.submittedAt === 0n
-          ? "Arbiter closed the dispute and accepted the delivery path."
-          : "Beneficiary submitted proof for client review.",
+          ? "Resolver closed the dispute and accepted the delivery path."
+          : "Worker submitted proof for client review.",
       timestamp: agreement.submittedAt > 0n ? agreement.submittedAt : isResolvedByArbiter ? agreement.completedAt : undefined,
       complete: agreement.submittedAt > 0n || isResolvedByArbiter,
     },
@@ -60,7 +60,7 @@ export function buildTimeline(agreement: TimelineAgreement, validation: Validati
 function settlementDetail(status: number) {
   if (status === 3) return "Client approved release or used the manual release path.";
   if (status === 4) return "Agreement is disputed and awaits arbiter resolution.";
-  if (status === 5) return "Arbiter resolved the disputed funds. No further client action is required.";
+  if (status === 5) return "Resolver distributed the disputed funds. No further client action is required.";
   if (status === 6) return "Funds were refunded after expiration.";
   if (status === 7) return "Agreement was cancelled before acceptance.";
   return "Settlement is pending.";
@@ -68,6 +68,6 @@ function settlementDetail(status: number) {
 
 function reviewDetail(status: number, validation: ValidationResult | null) {
   if (status === 3) return "Client approved the work and released the locked USDC.";
-  if (status === 5) return "Arbiter made the final payout decision and closed client review.";
+  if (status === 5) return "Resolver made the final payout decision and closed client review.";
   return validation ? validation.summary : "Optional local recommendation has not been run.";
 }

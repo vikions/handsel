@@ -1,10 +1,12 @@
 # Handsel
 
-Handsel is a proof-based USDC agreement layer for freelance, service, and agent work on Arc.
+Handsel is proof-based USDC settlement for real digital work on Arc, where completed agreements become verifiable work history.
 
-The name comes from an old trade/legal term for a first installment or earnest money. The product follows that pattern: a client commits USDC around clear work criteria, the beneficiary submits proof, AI-assisted review can help evaluate delivery, and the client explicitly approves release.
+The name comes from an old trade/legal term for a first installment or earnest money. A client defines the result and commits USDC, the worker submits proof, and the client approves settlement. Completed agreements become an objective, shareable work record.
 
-Tagline: **Proof-based settlement for real work.**
+Tagline: **Proof-based USDC settlement for real digital work.**
+
+Product line: **Agree. Prove. Settle. Build a work history.**
 
 Live app: **https://www.archandsel.xyz/**
 
@@ -22,9 +24,10 @@ Arc is not a future integration for Handsel. It is the settlement layer Handsel 
 
 - Live app: **https://www.archandsel.xyz/**
 - Public analytics dashboard: **https://www.archandsel.xyz/#/analytics**
+- Public Work Passport: **https://www.archandsel.xyz/#/profile/<wallet-address>**
 - Network: **Arc Testnet**
 - Chain ID: **5042002**
-- RPC: **https://rpc.testnet.arc.network**
+- Browser RPC: **https://rpc.drpc.testnet.arc.io**
 - Explorer: **https://testnet.arcscan.app**
 - Handsel contract: **0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867**
 - USDC contract: **0x3600000000000000000000000000000000000000**
@@ -36,9 +39,9 @@ Explorer links:
 
 ## Circle Reference
 
-Circle's arc-escrow repository demonstrates a sample escrow workflow on Arc testnet. Handsel builds a differentiated product layer around proof-based freelance and service payments: structured work criteria, proof submission, AI-assisted review, explicit client approval, dispute fallback, public receipts, and agent-tested settlement flows.
+Circle's arc-escrow repository demonstrates a sample escrow workflow on Arc testnet. Handsel builds a differentiated product layer around proof-based freelance and service payments: structured work criteria, proof submission, AI-assisted review, explicit client approval, dispute fallback, public receipts, and verifiable wallet work history.
 
-The Circle sample helps guide future Circle developer platform integrations: Circle Wallets / Programmable Wallets, gas sponsorship where supported, server-side transaction records, webhooks, and AI-assisted validation. This repository does not copy Circle's UI, branding, embedded bytecode, or large source blocks.
+The Circle sample informed the architecture of Handsel's implemented Circle integration: Modular Wallet passkey onboarding, sponsored Arc Testnet user operations, Circle Contracts event monitoring, signed webhooks, server-side transaction records, and persistent activity indexing. This repository does not copy Circle's UI, branding, embedded bytecode, or large source blocks.
 
 ### Circle Contracts event monitoring
 
@@ -54,7 +57,7 @@ The script never writes the API key to output or source control. The Railway-rea
 
 ### Circle Modular Wallets
 
-The frontend supports an optional Circle passkey smart account alongside the existing injected wallet. Users retain control through WebAuthn, and Handsel submits contract actions as sponsored Arc Testnet user operations. The Circle Client Key allowed domain and Passkey Domain must match the application domain.
+The frontend implements a Circle passkey smart account alongside the existing injected wallet. Users retain control through WebAuthn, and Handsel submits Circle-wallet contract actions as sponsored Arc Testnet user operations. The integration activates automatically when the production Circle Client Key and Client URL are supplied; no code change is required.
 
 ## Current Architecture
 
@@ -64,7 +67,7 @@ The frontend supports an optional Circle passkey smart account alongside the exi
 - `contracts/test/HandselAgreement.test.ts`: focused lifecycle and access-control tests.
 - `contracts/scripts/deploy.ts`: Arc testnet deployment script.
 - `frontend/`: React + Vite + TypeScript app using wagmi and viem for direct wallet calls.
-- `frontend/src/lib/aiValidation.ts`: deterministic local MVP review seam for future OpenAI validation.
+- `frontend/src/lib/aiValidation.ts`: deterministic local advisory review seam.
 - `frontend/src/lib/timeline.ts`: timeline view-model helper.
 - `frontend/src/lib/receipts.ts`: public receipt view-model helper.
 - `frontend/src/lib/circleWallet.ts`: Circle passkey smart-account and gas-sponsored transaction adapter.
@@ -72,18 +75,39 @@ The frontend supports an optional Circle passkey smart account alongside the exi
 - `server/`: Railway-ready Node API for Circle webhook verification and activity reads.
 - `supabase/migrations/`: service-role-only agreement index and idempotent event ledger.
 
-The deployed contract remains the settlement source of truth. Circle Contracts supplies event delivery, Supabase supplies a durable query index, and the frontend retains direct Arc reads for core agreement state. OpenAI-backed proof validation remains future work.
+The deployed contract remains the settlement source of truth. Circle Contracts supplies event delivery, Supabase supplies a durable query index, and the frontend retains direct Arc reads for core agreement state. The Circle modules are implemented and need only deployment credentials and service configuration. OpenAI-backed server validation is not presented as live.
+
+## Current Capability Status
+
+### Live
+
+- Arc Testnet deployment and USDC agreement lifecycle.
+- Verified Handsel contract with public source and ABI on ArcScan.
+- Client, worker, and resolver contract roles.
+- Proof submission, client release, dispute resolution, expiry refund, and cancellation.
+- Public analytics, role-aware personal dashboard, Work Passport, and settlement receipts.
+- Direct onchain reads remain available independently of the indexing backend.
+
+### Implemented - activates from environment configuration
+
+- Circle Modular Wallet registration and login through device passkeys.
+- Sponsored Circle smart-wallet user operations on Arc Testnet.
+- Circle Contracts lifecycle event monitors and signed webhook delivery.
+- Railway activity API and Supabase agreement/event index.
+- Indexed transaction links in personal activity, Work Passport, and public receipts.
+
+These are complete code paths, not roadmap placeholders. Add the documented Circle, Supabase, Railway, and Vercel values to activate them without modifying the application.
 
 ## Smart Contract Flow
 
-1. Client calls `createAgreement` with beneficiary, arbiter, amount, deadline, title, criteria, and metadata.
+1. Client calls `createAgreement` with worker, resolver, amount, deadline, title, criteria, and metadata.
 2. USDC is transferred from the client to the Handsel contract.
-3. Beneficiary calls `acceptAgreement`.
-4. Beneficiary calls `submitProof` with proof text, hash, or URI.
+3. Worker calls `acceptAgreement`.
+4. Worker calls `submitProof` with proof text, hash, or URI.
 5. Client reviews the proof and calls `approveProof` to release USDC.
 6. Client can use `releaseAgreement` as a manual release path while the agreement is active.
-7. Client or beneficiary can open a dispute from active or submitted status.
-8. Arbiter resolves disputed funds with a basis-point split.
+7. Client or worker can open a dispute from active or submitted status.
+8. Resolver distributes disputed funds with a basis-point split.
 9. Created or active agreements can be refunded after deadline.
 10. Unaccepted agreements can be cancelled by the client.
 
@@ -92,12 +116,13 @@ The contract has no admin withdrawal function, no owner custody path, and no upg
 ## Frontend Flow
 
 - Overview shows live contract reads for total agreements, total USDC volume, clients, freelancers, completed count, disputed count, and recent onchain agreements.
-- Dashboard shows wallet-specific agreements and user actions.
-- Create Agreement captures title, beneficiary, arbiter, USDC amount, deadline, acceptance criteria, and description or metadata URI.
+- Dashboard groups wallet-specific work into awaiting action, active, completed, and historical agreements.
+- Work Passport exposes objective completed agreements, settled USDC, role counts, dispute history, and public receipts for any wallet address.
+- Create Agreement captures title, worker, resolver, USDC amount, deadline, acceptance criteria, and optional brief or metadata URI.
 - Agreement Detail shows parties, criteria, proof, timeline, AI-assisted local review, and role-aware actions.
-- Submit Proof lets the beneficiary provide a URL or delivery note.
+- Submit Proof lets the worker provide a URL or delivery note.
 - Review Proof lets the client run a deterministic local recommendation before approving release.
-- Public Receipt shows agreement status, parties, criteria, proof, amount, and review recommendation.
+- Public Receipt shows completion state, settlement method, participant roles, proof, amount, verified contract, Work Passport links, and indexed ArcScan transactions when available.
 - Landing page includes example agreement requests to communicate real-world use cases for small USDC service tasks.
 
 ## Environment Variables
@@ -105,7 +130,8 @@ The contract has no admin withdrawal function, no owner custody path, and no upg
 Live frontend variables:
 
 ```bash
-VITE_ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+VITE_ARC_TESTNET_RPC_URL=https://rpc.drpc.testnet.arc.io
+VITE_ARC_FALLBACK_RPC_URL=https://rpc.quicknode.testnet.arc.io
 VITE_ARC_TESTNET_CHAIN_ID=5042002
 VITE_USDC_ADDRESS=0x3600000000000000000000000000000000000000
 VITE_HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
@@ -114,12 +140,12 @@ VITE_CIRCLE_CLIENT_KEY=
 VITE_CIRCLE_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
 ```
 
-The app still compiles without real credentials, but live contract reads and writes require the Arc testnet values above.
+The app still compiles without Circle or Supabase credentials. Arc contract values enable regular wallet reads and writes; Circle and backend values activate the additional implemented integrations.
 
 Deployment variables:
 
 ```bash
-ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+ARC_TESTNET_RPC_URL=https://rpc.drpc.testnet.arc.io
 ARC_TESTNET_CHAIN_ID=5042002
 PRIVATE_KEY=
 USDC_ADDRESS=0x3600000000000000000000000000000000000000
@@ -131,7 +157,7 @@ Server and Circle integration variables:
 ```bash
 PORT=8787
 APP_ORIGIN=http://localhost:5173,https://www.archandsel.xyz
-ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+ARC_TESTNET_RPC_URL=https://rpc.drpc.testnet.arc.io
 HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
@@ -140,9 +166,9 @@ CIRCLE_BLOCKCHAIN=ARC-TESTNET
 HANDSEL_WEBHOOK_URL=https://your-railway-domain.example/api/webhooks/circle
 ```
 
-`CIRCLE_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and any future entity secret are server-only. Never expose them through `VITE_*`. The Circle Client Key is intended for the browser and must be domain-restricted in Circle Console.
+`CIRCLE_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are server-only. Never expose them through `VITE_*`. The Circle Client Key is intended for the browser and must be domain-restricted in Circle Console.
 
-## Circle-backed Personal Activity Setup
+## Activate Circle-backed Personal Activity
 
 1. Create a Supabase project and run `supabase/migrations/202608040001_circle_activity.sql` in its SQL editor.
 2. Deploy `server/` to Railway using the variables in `server/.env.example`.
@@ -151,7 +177,7 @@ HANDSEL_WEBHOOK_URL=https://your-railway-domain.example/api/webhooks/circle
 5. In Circle Console Modular Wallets Configurator, set both the Client Key allowed domain and Passkey Domain to `www.archandsel.xyz`, matching the canonical application host exactly.
 6. Add the Client Key, Client URL, and Railway API URL to the Vercel frontend variables and redeploy.
 
-The personal dashboard is keyed by the connected wallet address. It shows agreements where that address is client, beneficiary, or arbiter, plus a Circle-indexed event ledger linked to ArcScan.
+The personal dashboard is keyed by the connected wallet address. It shows agreements where that address is client, worker, or resolver, plus a Circle-indexed event ledger linked to ArcScan. The public Work Passport uses the same objective agreement history for any shareable wallet route.
 
 ## Local Setup
 
@@ -203,10 +229,10 @@ pnpm --filter @handsel/frontend build
 pnpm build
 ```
 
-For contract deployment or redeployment, set these values in a local `.env` file only:
+The contract is already deployed and verified; final-submission setup does not require redeployment. The deployment script remains available for isolated development environments and requires these local-only values:
 
 ```bash
-ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+ARC_TESTNET_RPC_URL=https://rpc.drpc.testnet.arc.io
 ARC_TESTNET_CHAIN_ID=5042002
 PRIVATE_KEY=
 USDC_ADDRESS=0x3600000000000000000000000000000000000000
@@ -214,16 +240,11 @@ USDC_ADDRESS=0x3600000000000000000000000000000000000000
 
 Do not commit private keys or real wallet credentials. The deployment script also checks that `ARC_TESTNET_RPC_URL`, `ARC_TESTNET_CHAIN_ID`, and `USDC_ADDRESS` are present before it can deploy.
 
-Deploy or redeploy the contract:
+The current Arc Testnet frontend configuration is:
 
 ```bash
-pnpm --filter @handsel/contracts deploy:arc
-```
-
-After deployment, set the frontend environment to the deployed contract and USDC addresses. The current Arc testnet deployment uses:
-
-```bash
-VITE_ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+VITE_ARC_TESTNET_RPC_URL=https://rpc.drpc.testnet.arc.io
+VITE_ARC_FALLBACK_RPC_URL=https://rpc.quicknode.testnet.arc.io
 VITE_ARC_TESTNET_CHAIN_ID=5042002
 VITE_USDC_ADDRESS=0x3600000000000000000000000000000000000000
 VITE_HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
@@ -239,7 +260,7 @@ Recommended browser flow:
 
 1. Connect wallet on Arc testnet.
 2. Create an agreement with title, criteria, beneficiary, arbiter, amount, and deadline.
-3. Switch to the beneficiary wallet and accept.
+3. Switch to the worker wallet and accept.
 4. Submit proof text or a proof URL.
 5. Switch to the client wallet, run local AI-assisted review, and approve release.
 6. Open the receipt page and confirm the final status and settlement summary.
@@ -248,15 +269,13 @@ Recommended browser flow:
 
 Handsel demonstrates real-world economic activity on Arc testnet: structured service agreements, USDC commitment, proof submission, AI-assisted review, human approval, fallback dispute/refund flow, public settlement receipts, and verifiable contract activity on Arcscan.
 
-## Roadmap
+## Implementation and Expansion
 
-- Current: Live Arc testnet deployment with a public app, deployed Handsel contract, USDC agreement creation, proof submission, client release, dispute resolution, public receipts, and onchain verification.
-- Next: Production hardening for contract tests, frontend states, transaction visibility, receipts, error handling, and agreement lifecycle UX.
+- Live now: Arc Testnet deployment, verified contract, USDC agreement lifecycle, direct onchain analytics, Work Passport, public receipts, and the personal work hub.
+- Implemented integration activation: Supply Circle, Supabase, Railway, and Vercel environment values to activate the existing passkey wallet adapter, sponsored user operations, Circle Contracts webhooks, activity API, and persistent indexing. No feature implementation remains for these paths.
 - AI-assisted review: Expand the local proof review seam into a stronger AI-assisted recommendation layer that compares criteria and submitted proof while keeping final settlement decisions in human hands.
-- Circle Wallets: Add Arc Testnet SCA onboarding and Circle Gas Station sponsorship for client, freelancer, and agent contract actions.
-- Circle Contracts: Activate lifecycle event monitors and a `contracts.EventLog` webhook for durable timelines, notifications, and receipts.
 - Crosschain funding: Add CCTP Bridge Kit as an optional pre-agreement funding step that brings USDC onto Arc without changing Handsel's settlement rules.
-- Agent tasks: Execute allowlisted Handsel contract actions from a Circle Agent Wallet on `ARC-TESTNET` and surface the resulting transaction trail in the same agreement UI.
+- Agent tasks: Add allowlisted API automation around the existing agreement lifecycle and transaction trail.
 - Product expansion: Agreement templates, analytics, dispute workflow improvements, marketplace/API paths, and user onboarding for freelancers, agencies, creators, and small businesses.
 
 ## Security and Compliance Notes

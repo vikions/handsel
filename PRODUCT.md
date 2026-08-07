@@ -16,7 +16,7 @@ Handsel lets a client define work, commit USDC, receive proof from a beneficiary
 
 ## Positioning
 
-Handsel is a proof-based USDC agreement layer for freelance, service, and future agent work on Arc. Its primary path is criteria first, proof submission second, and human-controlled release last.
+Handsel is proof-based USDC settlement for real digital work on Arc, where completed agreements become verifiable work history. Its primary path is criteria first, proof submission second, and human-controlled release last.
 
 ## Operating Context
 
@@ -29,13 +29,14 @@ Users connect an EVM wallet, create an agreement with a beneficiary and arbiter,
 - AI-assisted review is a deterministic local MVP recommendation; client approval controls release.
 - Public analytics are derived from contract reads and events.
 - The product is a testnet MVP, not a regulated escrow service or legal substitute.
-- Circle Wallets, persistent server state, and server-side AI validation are roadmap items, not current capabilities.
+- Circle Modular Wallet/passkey support, sponsored user operations, Circle Contracts webhooks, Supabase persistence, and the Railway activity API are implemented and activate when their production environment values are supplied.
+- Server-side OpenAI validation is not implemented; the current AI-assisted review is explicitly local and advisory.
 
 ## Brand Commitments
 
 - Product name: Handsel.
-- Tagline: Proof-based settlement for real work.
-- Core line: Define the work. Hold the payment. Submit proof. Release on approval.
+- Tagline: Proof-based USDC settlement for real digital work.
+- Core line: Agree. Prove. Settle. Build a work history.
 - Handsel is independent and is not affiliated with or endorsed by Circle.
 - Avoid claims of mainnet readiness, guaranteed dispute resolution, legal replacement, or universal availability.
 
@@ -44,6 +45,7 @@ Users connect an EVM wallet, create an agreement with a beneficiary and arbiter,
 - Live app at `https://www.archandsel.xyz/`.
 - Arc testnet contract at `0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867`.
 - Public analytics route at `https://www.archandsel.xyz/#/analytics`.
+- Public wallet Work Passport route at `https://www.archandsel.xyz/#/profile/<wallet>`.
 - Real contract lifecycle, tests, wallet interactions, proof submission, local review, and receipt UI exist in this repository.
 - No testimonials, customer logos, production benchmarks, or mainnet evidence should be fabricated.
 

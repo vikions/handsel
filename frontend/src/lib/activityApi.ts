@@ -2,8 +2,20 @@ import { isAddress } from "viem";
 
 export type IndexedAgreement = {
   agreement_id: number;
+  client: string;
+  beneficiary: string;
+  arbiter: string;
+  amount: string;
+  deadline: string;
   title: string;
+  criteria_uri: string;
+  metadata_uri: string;
+  proof_uri: string;
   status: number;
+  created_at_chain: string;
+  accepted_at_chain: string;
+  submitted_at_chain: string;
+  completed_at_chain: string;
 };
 
 export type IndexedEvent = {
@@ -12,6 +24,7 @@ export type IndexedEvent = {
   event_name: string;
   tx_hash: string;
   block_height: number | null;
+  event_args?: Record<string, unknown>;
   confirmed_at: string;
 };
 
@@ -31,4 +44,3 @@ export async function getPersonalActivity(address: string): Promise<PersonalActi
   if (!response.ok) throw new Error(body.error || `Activity service returned ${response.status}.`);
   return body;
 }
-

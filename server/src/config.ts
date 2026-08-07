@@ -14,7 +14,7 @@ export const env = {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean),
-  arcRpcUrl: process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.network",
+  arcRpcUrl: process.env.ARC_TESTNET_RPC_URL || "https://rpc.drpc.testnet.arc.io",
   handselAddress: address(process.env.HANDSEL_CONTRACT_ADDRESS, defaultContract),
   circleApiKey: process.env.CIRCLE_API_KEY || "",
   supabaseUrl: process.env.SUPABASE_URL || "",
