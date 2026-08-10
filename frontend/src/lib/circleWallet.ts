@@ -46,6 +46,7 @@ export function createCirclePasskeyProvider(options: {
       if (method === "eth_sendTransaction") {
         const [transaction] = requestParams as [{ to?: Address; data?: Hex; value?: Hex }];
         if (!transaction.to) throw new Error("Circle wallet transaction is missing a destination.");
+        const accountCode = await active.publicClient.getCode({ address: active.address });
         const userOpHash = await active.bundlerClient.sendUserOperation({
           account: active.account,
           calls: [
@@ -56,6 +57,8 @@ export function createCirclePasskeyProvider(options: {
             },
           ],
           paymaster: true,
+          // Circle MSCAs deploy lazily and require nonce zero for their first user operation.
+          ...(accountCode && accountCode !== "0x" ? {} : { nonce: 0n }),
         });
         const { receipt } = await active.bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
         return receipt.transactionHash;
