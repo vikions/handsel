@@ -2036,7 +2036,7 @@ function useTxRunner() {
       setTxState({ label, hash, success: "Transaction confirmed" });
       return hash;
     } catch (error) {
-      setTxState({ label, error: error instanceof Error ? error.message : "Transaction failed." });
+      setTxState({ label, error: transactionErrorMessage(error) });
       return undefined;
     } finally {
       setIsConfirming(false);
@@ -2044,6 +2044,17 @@ function useTxRunner() {
   }
 
   return { run, isPending: isPending || isConfirming, txState };
+}
+
+function transactionErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return "Transaction failed.";
+
+  const walletError = error as Error & { shortMessage?: unknown; details?: unknown };
+  const shortMessage = typeof walletError.shortMessage === "string" ? walletError.shortMessage : "";
+  const details = typeof walletError.details === "string" ? walletError.details : "";
+  const message = shortMessage || details || error.message;
+
+  return message.split("\nRequest Arguments:")[0].trim() || "Transaction failed.";
 }
 
 function normalizeAgreement(raw: unknown, id: bigint): AgreementRecord | null {

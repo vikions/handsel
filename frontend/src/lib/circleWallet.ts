@@ -47,6 +47,7 @@ export function createCirclePasskeyProvider(options: {
         const [transaction] = requestParams as [{ to?: Address; data?: Hex; value?: Hex }];
         if (!transaction.to) throw new Error("Circle wallet transaction is missing a destination.");
         const accountCode = await active.publicClient.getCode({ address: active.address });
+        const isDeployed = Boolean(accountCode && accountCode !== "0x");
         const userOpHash = await active.bundlerClient.sendUserOperation({
           account: active.account,
           calls: [
@@ -56,9 +57,9 @@ export function createCirclePasskeyProvider(options: {
               value: transaction.value ? BigInt(transaction.value) : 0n,
             },
           ],
-          paymaster: true,
-          // Circle MSCAs deploy lazily and require nonce zero for their first user operation.
-          ...(accountCode && accountCode !== "0x" ? {} : { nonce: 0n }),
+          // Circle's EIP-1193 path sends the deployment operation without a paymaster.
+          // Once the account exists, Handsel uses Gas Station for subsequent operations.
+          ...(isDeployed ? { paymaster: true } : { nonce: 0n }),
         });
         const { receipt } = await active.bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
         return receipt.transactionHash;
