@@ -1,4 +1,4 @@
-import { createPublicClient, type Address, type Chain, type Hex } from "viem";
+import { createPublicClient, parseGwei, type Address, type Chain, type Hex } from "viem";
 
 export type CircleWalletMode = "login" | "register";
 type Listener = (...args: unknown[]) => void;
@@ -48,6 +48,17 @@ export function createCirclePasskeyProvider(options: {
         if (!transaction.to) throw new Error("Circle wallet transaction is missing a destination.");
         const accountCode = await active.publicClient.getCode({ address: active.address });
         const isDeployed = Boolean(accountCode && accountCode !== "0x");
+        const estimatedFees = await active.publicClient.estimateFeesPerGas({ type: "eip1559" });
+        const minimumPriorityFee = parseGwei("1");
+        const maxPriorityFeePerGas = maxBigInt(
+          estimatedFees.maxPriorityFeePerGas,
+          minimumPriorityFee,
+        );
+        const maxFeePerGas = maxBigInt(
+          estimatedFees.maxFeePerGas +
+            (maxPriorityFeePerGas - estimatedFees.maxPriorityFeePerGas),
+          maxPriorityFeePerGas,
+        );
         const userOpHash = await active.bundlerClient.sendUserOperation({
           account: active.account,
           calls: [
@@ -60,6 +71,9 @@ export function createCirclePasskeyProvider(options: {
           // Circle's EIP-1193 path sends the deployment operation without a paymaster.
           // Once the account exists, Handsel uses Gas Station for subsequent operations.
           ...(isDeployed ? { paymaster: true } : { nonce: 0n }),
+          // Circle's Arc bundler currently enforces a 1 gwei priority-fee floor.
+          maxFeePerGas,
+          maxPriorityFeePerGas,
         });
         const { receipt } = await active.bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
         return receipt.transactionHash;
@@ -128,6 +142,10 @@ async function createSession(
   const bundlerClient = createBundlerClient({ account, chain: options.chain, transport: modularTransport });
 
   return { account, address: account.address, bundlerClient, publicClient };
+}
+
+function maxBigInt(left: bigint, right: bigint) {
+  return left > right ? left : right;
 }
 
 function assertAccount(requested: Address, actual: Address) {
