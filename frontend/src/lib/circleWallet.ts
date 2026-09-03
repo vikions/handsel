@@ -3,6 +3,7 @@ import { createPublicClient, parseGwei, type Address, type Chain, type Hex } fro
 export type CircleWalletMode = "login" | "register";
 type Listener = (...args: unknown[]) => void;
 type Request = { method: string; params?: unknown };
+const rememberedAddressKey = "handsel.circle-wallet.address";
 
 export function createCirclePasskeyProvider(options: {
   chain: Chain;
@@ -11,6 +12,7 @@ export function createCirclePasskeyProvider(options: {
 }) {
   let mode: CircleWalletMode = "login";
   let session: Awaited<ReturnType<typeof createSession>> | undefined;
+  let rememberedAddress = loadRememberedAddress();
   const listeners = new Map<string, Set<Listener>>();
 
   const provider = {
@@ -19,6 +21,8 @@ export function createCirclePasskeyProvider(options: {
     },
     async disconnect() {
       session = undefined;
+      rememberedAddress = undefined;
+      window.localStorage.removeItem(rememberedAddressKey);
       emit("accountsChanged", []);
       emit("disconnect", { code: 4900, message: "Circle wallet disconnected." });
     },
@@ -26,7 +30,7 @@ export function createCirclePasskeyProvider(options: {
       const requestParams = Array.isArray(params) ? params : [];
       if (method === "eth_chainId") return `0x${options.chain.id.toString(16)}`;
       if (method === "wallet_switchEthereumChain" || method === "wallet_addEthereumChain") return null;
-      if (method === "eth_accounts") return session ? [session.address] : [];
+      if (method === "eth_accounts") return session ? [session.address] : rememberedAddress ? [rememberedAddress] : [];
       if (method === "eth_requestAccounts") {
         const active = await ensureSession();
         return [active.address];
@@ -44,21 +48,21 @@ export function createCirclePasskeyProvider(options: {
         return active.account.signTypedData(JSON.parse(typedData));
       }
       if (method === "eth_sendTransaction") {
-        const [transaction] = requestParams as [{ to?: Address; data?: Hex; value?: Hex }];
+        const [transaction] = requestParams as [{ from?: Address; to?: Address; data?: Hex; value?: Hex }];
         if (!transaction.to) throw new Error("Circle wallet transaction is missing a destination.");
+        if (transaction.from) assertAccount(transaction.from, active.address);
         const accountCode = await active.publicClient.getCode({ address: active.address });
         const isDeployed = Boolean(accountCode && accountCode !== "0x");
         const estimatedFees = await active.publicClient.estimateFeesPerGas({ type: "eip1559" });
-        const minimumPriorityFee = parseGwei("1");
+        const minimumPriorityFee = parseGwei("1.2");
         const maxPriorityFeePerGas = maxBigInt(
           estimatedFees.maxPriorityFeePerGas,
           minimumPriorityFee,
         );
-        const maxFeePerGas = maxBigInt(
+        const adjustedMaxFee =
           estimatedFees.maxFeePerGas +
-            (maxPriorityFeePerGas - estimatedFees.maxPriorityFeePerGas),
-          maxPriorityFeePerGas,
-        );
+          (maxPriorityFeePerGas - estimatedFees.maxPriorityFeePerGas);
+        const maxFeePerGas = maxBigInt((adjustedMaxFee * 120n) / 100n, maxPriorityFeePerGas);
         const userOpHash = await active.bundlerClient.sendUserOperation({
           account: active.account,
           calls: [
@@ -68,15 +72,27 @@ export function createCirclePasskeyProvider(options: {
               value: transaction.value ? BigInt(transaction.value) : 0n,
             },
           ],
-          // Circle's EIP-1193 path sends the deployment operation without a paymaster.
-          // Once the account exists, Handsel uses Gas Station for subsequent operations.
-          ...(isDeployed ? { paymaster: true } : { nonce: 0n }),
-          // Circle's Arc bundler currently enforces a 1 gwei priority-fee floor.
+          // The first sponsored operation deploys the smart account at nonce zero.
+          paymaster: true,
+          ...(isDeployed ? {} : { nonce: 0n }),
+          // Circle enforces a 1 gwei floor; the buffer also permits replacing a stale operation.
           maxFeePerGas,
           maxPriorityFeePerGas,
         });
-        const { receipt } = await active.bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
-        return receipt.transactionHash;
+        try {
+          const { receipt } = await active.bundlerClient.waitForUserOperationReceipt({
+            hash: userOpHash,
+            timeout: 90_000,
+          });
+          return receipt.transactionHash;
+        } catch (error) {
+          if (error instanceof Error && error.name.includes("Timeout")) {
+            throw new Error(
+              `Circle accepted UserOperation ${userOpHash}, but it was not included on Arc within 90 seconds. Check its status in Circle Console before retrying.`,
+            );
+          }
+          throw error;
+        }
       }
 
       return active.publicClient.request({ method, params: requestParams } as never);
@@ -99,6 +115,8 @@ export function createCirclePasskeyProvider(options: {
       throw new Error("Circle passkey wallet is not configured for this domain.");
     }
     session = await createSession(options, mode);
+    rememberedAddress = session.address;
+    window.localStorage.setItem(rememberedAddressKey, session.address);
     emit("connect", { chainId: `0x${options.chain.id.toString(16)}` });
     emit("accountsChanged", [session.address]);
     return session;
@@ -142,6 +160,15 @@ async function createSession(
   const bundlerClient = createBundlerClient({ account, chain: options.chain, transport: modularTransport });
 
   return { account, address: account.address, bundlerClient, publicClient };
+}
+
+function loadRememberedAddress(): Address | undefined {
+  try {
+    const value = window.localStorage.getItem(rememberedAddressKey);
+    return value && /^0x[a-fA-F0-9]{40}$/.test(value) ? (value as Address) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function maxBigInt(left: bigint, right: bigint) {

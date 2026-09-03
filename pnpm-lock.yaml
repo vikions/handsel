@@ -78,10 +78,16 @@ importers:
       viem:
         specifier: 2.49.3
         version: 2.49.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)
+      ws:
+        specifier: ^8.18.3
+        version: 8.20.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.1
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       tsx:
         specifier: ^4.19.2
         version: 4.23.5
@@ -1716,6 +1722,9 @@ packages:
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@types/ws@8.5.3':
     resolution: {integrity: sha512-6YOoWjruKj1uLf3INHH7D3qTXwFfEsg1kf3c0uDdSBJwfa/llkwIjrAGV7j7mVgGNbzTQ3HiHKKDXl6bJPD97w==}
@@ -6736,6 +6745,10 @@ snapshots:
       '@types/node': 22.20.1
 
   '@types/trusted-types@2.0.7': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.20.1
 
   '@types/ws@8.5.3':
     dependencies:

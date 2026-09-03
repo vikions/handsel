@@ -12,10 +12,12 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
-    "viem": "2.49.3"
+    "viem": "2.49.3",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   }

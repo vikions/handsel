@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getAddress, isAddress } from "viem";
+import WebSocket from "ws";
 import { env } from "./config.js";
 import type { AgreementSnapshot, DecodedHandselEvent } from "./handsel.js";
 
@@ -21,6 +22,7 @@ function database() {
   }
   client ??= createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { transport: WebSocket as unknown as typeof globalThis.WebSocket },
   });
   return client;
 }
