@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Clients and independent workers creating small proof-based service agreements, plus hackathon and grant reviewers evaluating real Arc testnet activity. A future audience includes marketplaces and autonomous agents settling task-based work.
+Clients and independent workers creating proof-based service agreements, plus grant reviewers evaluating verifiable Arc activity. A future audience includes marketplaces and autonomous agents settling task-based work.
 
 ## Product Purpose
 
@@ -20,7 +20,7 @@ Handsel is proof-based USDC settlement for real digital work on Arc, where compl
 
 ## Operating Context
 
-Users connect an EVM wallet, create an agreement with a beneficiary and arbiter, approve USDC, and submit onchain transactions on Arc testnet. Agreement status, proof, parties, timeline, and settlement receipts are visible in the web app.
+Users connect an EVM wallet, create an agreement with a beneficiary and arbiter, approve USDC, and submit onchain transactions on Arc. Production targets Arc Mainnet; Arc Testnet remains available for development.
 
 ## Capabilities and Constraints
 
@@ -28,8 +28,9 @@ Users connect an EVM wallet, create an agreement with a beneficiary and arbiter,
 - The deployed Solidity contract holds USDC without an admin withdrawal or upgrade path.
 - AI-assisted review is a deterministic local MVP recommendation; client approval controls release.
 - Public analytics are derived from contract reads and events.
-- The product is a testnet MVP, not a regulated escrow service or legal substitute.
-- Circle Modular Wallet/passkey support, sponsored user operations, Circle Contracts webhooks, Supabase persistence, and the Railway activity API are implemented and activate when their production environment values are supplied.
+- The product is not a regulated escrow service or legal substitute.
+- Circle Modular Wallet/passkey support and sponsored user operations are network-aware. Circle Contracts event monitor APIs list Arc Mainnet, but a Handsel mainnet monitor/webhook has not been configured or verified; Arc RPC indexing is the default.
+- Supabase persistence and the Railway activity API use Arc RPC indexing on mainnet and separate records by chain and contract.
 - Server-side OpenAI validation is not implemented; the current AI-assisted review is explicitly local and advisory.
 
 ## Brand Commitments
@@ -38,12 +39,12 @@ Users connect an EVM wallet, create an agreement with a beneficiary and arbiter,
 - Tagline: Proof-based USDC settlement for real digital work.
 - Core line: Agree. Prove. Settle. Build a work history.
 - Handsel is independent and is not affiliated with or endorsed by Circle.
-- Avoid claims of mainnet readiness, guaranteed dispute resolution, legal replacement, or universal availability.
+- Avoid claims of guaranteed dispute resolution, legal replacement, or universal availability.
 
 ## Evidence on Hand
 
 - Live app at `https://www.archandsel.xyz/`.
-- Arc testnet contract at `0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867`.
+- Arc Testnet and Arc Mainnet contracts both exist at `0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867` on their respective chains. The mainnet deployment is recorded in `deployments/arc-mainnet.json`; production integration and an end-to-end agreement remain unverified.
 - Public analytics route at `https://www.archandsel.xyz/#/analytics`.
 - Public wallet Work Passport route at `https://www.archandsel.xyz/#/profile/<wallet>`.
 - Real contract lifecycle, tests, wallet interactions, proof submission, local review, and receipt UI exist in this repository.

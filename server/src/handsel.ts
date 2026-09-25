@@ -23,14 +23,14 @@ export const handselAbi = parseAbi([
   "function getAgreement(uint256 agreementId) view returns ((address client,address beneficiary,address arbiter,uint256 amount,uint256 deadline,string title,string criteriaURI,string metadataURI,string proofURI,uint8 status,uint256 createdAt,uint256 acceptedAt,uint256 submittedAt,uint256 completedAt))",
 ]);
 
-const arcTestnet = defineChain({
-  id: 5_042_002,
-  name: "Arc Testnet",
+export const arcChain = defineChain({
+  id: env.chainId,
+  name: env.networkName,
   nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
   rpcUrls: { default: { http: [env.arcRpcUrl] } },
 });
 
-const publicClient = createPublicClient({ chain: arcTestnet, transport: http(env.arcRpcUrl) });
+export const publicClient = createPublicClient({ chain: arcChain, transport: http(env.arcRpcUrl) });
 
 export type DecodedHandselEvent = {
   agreementId: string;
@@ -39,6 +39,9 @@ export type DecodedHandselEvent = {
 };
 
 export type AgreementSnapshot = {
+  network: string;
+  chain_id: number;
+  contract_address: string;
   agreement_id: string;
   client: string;
   beneficiary: string;
@@ -61,7 +64,7 @@ export function decodeHandselEvent(topics: Hex[], data: Hex): DecodedHandselEven
   const decoded = decodeEventLog({ abi: handselAbi, topics: topics as [Hex, ...Hex[]], data });
   const args = decoded.args as unknown as Record<string, unknown>;
   const agreementId = args.agreementId;
-  if (typeof agreementId !== "bigint") throw new Error("Circle event is missing agreementId.");
+  if (typeof agreementId !== "bigint") throw new Error("Contract event is missing agreementId.");
 
   return {
     agreementId: agreementId.toString(),
@@ -79,6 +82,9 @@ export async function readAgreementSnapshot(agreementId: string): Promise<Agreem
   });
 
   return {
+    network: env.network,
+    chain_id: env.chainId,
+    contract_address: env.handselAddress.toLowerCase(),
     agreement_id: agreementId,
     client: normalizeAddress(agreement.client),
     beneficiary: normalizeAddress(agreement.beneficiary),

@@ -6,6 +6,13 @@
     "build": "hardhat compile",
     "compile": "hardhat compile",
     "deploy:arc": "hardhat run scripts/deploy.ts --network arcTestnet",
+    "deploy:arc:testnet": "hardhat run scripts/deploy.ts --network arcTestnet",
+    "deploy:arc:mainnet": "hardhat run scripts/deploy.ts --network arcMainnet",
+    "mainnet:preflight": "hardhat run scripts/mainnet-preflight.ts --network arcMainnet",
+    "mainnet:postdeploy": "hardhat run scripts/mainnet-postdeploy.ts --network arcMainnet",
+    "verify:arc:testnet": "hardhat verify --network arcTestnet",
+    "verify:arc:mainnet": "hardhat verify --network arcMainnet",
+    "typecheck": "tsc --noEmit",
     "test": "hardhat test"
   },
   "dependencies": {
@@ -13,7 +20,13 @@
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.1.3",
+    "@nomicfoundation/hardhat-network-helpers": "^1.1.2",
+    "@types/mocha": "^10.0.10",
+    "@types/chai": "^4.3.20",
+    "@types/node": "^22.10.2",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "ethers": "^6.16.0",
     "hardhat": "^2.22.19",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"

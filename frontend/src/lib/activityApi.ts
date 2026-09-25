@@ -1,4 +1,5 @@
 import { isAddress } from "viem";
+import { arcNetwork } from "./config";
 
 export type IndexedAgreement = {
   agreement_id: number;
@@ -30,6 +31,8 @@ export type IndexedEvent = {
 
 export type PersonalActivity = {
   address: string;
+  network: "mainnet" | "testnet";
+  chainId: number;
   agreements: IndexedAgreement[];
   events: IndexedEvent[];
 };
@@ -42,5 +45,8 @@ export async function getPersonalActivity(address: string): Promise<PersonalActi
   const response = await fetch(`${activityApiUrl}/api/activity/${address}`);
   const body = (await response.json().catch(() => ({}))) as PersonalActivity & { error?: string };
   if (!response.ok) throw new Error(body.error || `Activity service returned ${response.status}.`);
+  if (body.network !== arcNetwork) {
+    throw new Error(`Activity service is configured for ${body.network || "another network"}.`);
+  }
   return body;
 }

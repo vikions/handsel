@@ -6,7 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title HandselAgreement
-/// @notice Proof-based USDC agreement layer for service agreements on Arc testnet.
+/// @notice Proof-based USDC agreement layer for service agreements on Arc.
 /// @dev Funds can only move through participant-controlled agreement flows. There is no admin custody path.
 contract HandselAgreement is ReentrancyGuard {
     using SafeERC20 for IERC20;

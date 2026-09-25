@@ -3,7 +3,8 @@ import { getAddress } from "viem";
 import { verifyCircleWebhook } from "./circle.js";
 import { env, integrationStatus } from "./config.js";
 import { decodeHandselEvent, readAgreementSnapshot } from "./handsel.js";
-import { getPersonalActivity, persistCircleEvent } from "./repository.js";
+import { indexerConfigured, startHandselIndexer, syncHandselEvents } from "./indexer.js";
+import { getPersonalActivity, indexedEventId, persistIndexedEvent } from "./repository.js";
 
 type CircleEventNotification = {
   notificationId?: string;
@@ -33,12 +34,18 @@ const server = createServer(async (request, response) => {
         status: "ok",
         integrations: integrationStatus,
         contract: env.handselAddress,
-        blockchain: "ARC-TESTNET",
+        network: env.network,
+        chainId: env.chainId,
+        blockchain: env.circleBlockchain,
+        indexer: indexerConfigured(),
       });
     }
 
     if (request.method === "GET" && url.pathname.startsWith("/api/activity/")) {
       const walletAddress = decodeURIComponent(url.pathname.slice("/api/activity/".length));
+      await syncHandselEvents().catch((error) => {
+        console.error("Activity refresh failed; serving the latest indexed state:", error);
+      });
       return send(response, 200, await getPersonalActivity(walletAddress));
     }
 
@@ -59,8 +66,9 @@ const server = createServer(async (request, response) => {
         !payload.notificationId ||
         !event?.contractAddress ||
         getAddress(event.contractAddress) !== env.handselAddress ||
-        event.blockchain !== "ARC-TESTNET" ||
+        event.blockchain !== env.circleBlockchain ||
         !event.txHash ||
+        event.logIndex === undefined ||
         !event.data ||
         !event.topics?.length
       ) {
@@ -69,8 +77,8 @@ const server = createServer(async (request, response) => {
 
       const decoded = decodeHandselEvent(event.topics as `0x${string}`[], event.data as `0x${string}`);
       const snapshot = await readAgreementSnapshot(decoded.agreementId);
-      await persistCircleEvent(snapshot, {
-        notificationId: payload.notificationId,
+      await persistIndexedEvent(snapshot, {
+        notificationId: indexedEventId(env.chainId, event.txHash, event.logIndex),
         txHash: event.txHash,
         blockHeight: event.blockHeight,
         logIndex: event.logIndex,
@@ -91,6 +99,7 @@ const server = createServer(async (request, response) => {
 
 server.listen(env.port, "0.0.0.0", () => {
   console.log(`Handsel API listening on port ${env.port}.`);
+  startHandselIndexer();
 });
 
 function applyCors(request: IncomingMessage, response: ServerResponse) {

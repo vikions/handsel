@@ -3,16 +3,18 @@ import { createPublicClient, parseGwei, type Address, type Chain, type Hex } fro
 export type CircleWalletMode = "login" | "register";
 type Listener = (...args: unknown[]) => void;
 type Request = { method: string; params?: unknown };
-const rememberedAddressKey = "handsel.circle-wallet.address";
+const rememberedAddressKey = (network: "mainnet" | "testnet") => `handsel.circle-wallet.${network}.address`;
 
 export function createCirclePasskeyProvider(options: {
   chain: Chain;
+  network: "mainnet" | "testnet";
   clientKey: string;
   clientUrl: string;
 }) {
   let mode: CircleWalletMode = "login";
   let session: Awaited<ReturnType<typeof createSession>> | undefined;
-  let rememberedAddress = loadRememberedAddress();
+  const storageKey = rememberedAddressKey(options.network);
+  let rememberedAddress = loadRememberedAddress(storageKey);
   const listeners = new Map<string, Set<Listener>>();
 
   const provider = {
@@ -22,7 +24,7 @@ export function createCirclePasskeyProvider(options: {
     async disconnect() {
       session = undefined;
       rememberedAddress = undefined;
-      window.localStorage.removeItem(rememberedAddressKey);
+      window.localStorage.removeItem(storageKey);
       emit("accountsChanged", []);
       emit("disconnect", { code: 4900, message: "Circle wallet disconnected." });
     },
@@ -54,7 +56,9 @@ export function createCirclePasskeyProvider(options: {
         const accountCode = await active.publicClient.getCode({ address: active.address });
         const isDeployed = Boolean(accountCode && accountCode !== "0x");
         const estimatedFees = await active.publicClient.estimateFeesPerGas({ type: "eip1559" });
-        const minimumPriorityFee = parseGwei("1.2");
+        const minimumPriorityFee = options.network === "testnet"
+          ? parseGwei("1.2")
+          : estimatedFees.maxPriorityFeePerGas;
         const maxPriorityFeePerGas = maxBigInt(
           estimatedFees.maxPriorityFeePerGas,
           minimumPriorityFee,
@@ -75,16 +79,19 @@ export function createCirclePasskeyProvider(options: {
           // The first sponsored operation deploys the smart account at nonce zero.
           paymaster: true,
           ...(isDeployed ? {} : { nonce: 0n }),
-          // Circle enforces a 1 gwei floor; the buffer also permits replacing a stale operation.
+          // Testnet currently needs a floor; mainnet uses the live bundler estimate.
           maxFeePerGas,
           maxPriorityFeePerGas,
         });
         try {
-          const { receipt } = await active.bundlerClient.waitForUserOperationReceipt({
+          const operationReceipt = await active.bundlerClient.waitForUserOperationReceipt({
             hash: userOpHash,
             timeout: 90_000,
           });
-          return receipt.transactionHash;
+          if (!operationReceipt.success) {
+            throw new Error(`Circle UserOperation ${userOpHash} reverted onchain. Check Circle Console before retrying.`);
+          }
+          return operationReceipt.receipt.transactionHash;
         } catch (error) {
           if (error instanceof Error && error.name.includes("Timeout")) {
             throw new Error(
@@ -116,7 +123,7 @@ export function createCirclePasskeyProvider(options: {
     }
     session = await createSession(options, mode);
     rememberedAddress = session.address;
-    window.localStorage.setItem(rememberedAddressKey, session.address);
+    window.localStorage.setItem(storageKey, session.address);
     emit("connect", { chainId: `0x${options.chain.id.toString(16)}` });
     emit("accountsChanged", [session.address]);
     return session;
@@ -130,7 +137,7 @@ export function createCirclePasskeyProvider(options: {
 }
 
 async function createSession(
-  options: { chain: Chain; clientKey: string; clientUrl: string },
+  options: { chain: Chain; network: "mainnet" | "testnet"; clientKey: string; clientUrl: string },
   mode: CircleWalletMode,
 ) {
   const [circle, accountAbstraction] = await Promise.all([
@@ -151,7 +158,8 @@ async function createSession(
     mode: mode === "register" ? WebAuthnMode.Register : WebAuthnMode.Login,
     username: mode === "register" ? "Handsel" : undefined,
   });
-  const modularTransport = toModularTransport(`${options.clientUrl}/arcTestnet`, options.clientKey);
+  const networkPath = options.network === "mainnet" ? "arc" : "arcTestnet";
+  const modularTransport = toModularTransport(`${options.clientUrl}/${networkPath}`, options.clientKey);
   const publicClient = createPublicClient({ chain: options.chain, transport: modularTransport });
   const account = await toCircleSmartAccount({
     client: publicClient,
@@ -162,9 +170,9 @@ async function createSession(
   return { account, address: account.address, bundlerClient, publicClient };
 }
 
-function loadRememberedAddress(): Address | undefined {
+function loadRememberedAddress(storageKey: string): Address | undefined {
   try {
-    const value = window.localStorage.getItem(rememberedAddressKey);
+    const value = window.localStorage.getItem(storageKey);
     return value && /^0x[a-fA-F0-9]{40}$/.test(value) ? (value as Address) : undefined;
   } catch {
     return undefined;

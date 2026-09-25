@@ -1,3 +1,5 @@
+import { arcNetwork, handselAddress } from "./config";
+
 export type Recommendation = "approve" | "needs_review" | "likely_mismatch";
 
 export type ValidationResult = {
@@ -13,7 +15,7 @@ export type ValidationInput = {
   proof: string;
 };
 
-const STORAGE_PREFIX = "handsel:validation:";
+const STORAGE_PREFIX = `handsel:validation:${arcNetwork}:${handselAddress.toLowerCase()}:`;
 
 export function validateProof({ criteria, proof, title }: ValidationInput): ValidationResult {
   const normalizedProof = proof.trim();

@@ -1,0 +1,10 @@
+{
+  "network": "arc-mainnet",
+  "chainId": 5042,
+  "contract": "HandselAgreement",
+  "address": "0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867",
+  "deploymentBlock": 22724141,
+  "deploymentTx": "0x3556fcbea8c41c0c75a2aeb9fde699177bdeb0afa70e2296f371061fb11dc369",
+  "usdc": "0x3600000000000000000000000000000000000000",
+  "explorer": "https://explorer.arc.io/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867"
+}

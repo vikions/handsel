@@ -7,10 +7,13 @@
     "build": "pnpm --filter @handsel/contracts build && pnpm --filter @handsel/server build && pnpm --filter @handsel/frontend build",
     "circle:monitors": "node --env-file-if-exists=.env scripts/setup-circle-event-monitors.mjs",
     "compile": "pnpm --filter @handsel/contracts compile",
+    "mainnet:preflight": "pnpm --filter @handsel/contracts mainnet:preflight",
+    "mainnet:postdeploy": "pnpm --filter @handsel/contracts mainnet:postdeploy",
     "dev": "pnpm --filter @handsel/frontend build && node scripts/serve-frontend.mjs",
     "dev:vite": "pnpm --filter @handsel/frontend dev",
     "dev:server": "pnpm --filter @handsel/server build && pnpm --filter @handsel/server dev",
     "start:server": "pnpm --filter @handsel/server start",
+    "typecheck": "pnpm --filter @handsel/contracts typecheck && pnpm --filter @handsel/server typecheck && pnpm --filter @handsel/frontend typecheck",
     "test": "pnpm --filter @handsel/contracts test && pnpm --filter @handsel/server test"
   }
 }

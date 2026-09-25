@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 const apiKey = process.env.CIRCLE_API_KEY;
-const contractAddress =
-  process.env.HANDSEL_CONTRACT_ADDRESS || "0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867";
-const blockchain = "ARC-TESTNET";
+const contractAddress = process.env.HANDSEL_CONTRACT_ADDRESS;
+const blockchain = process.env.CIRCLE_BLOCKCHAIN;
 const apiBaseUrl = "https://api.circle.com";
 const webhookUrl = process.env.HANDSEL_WEBHOOK_URL;
 
@@ -21,6 +20,28 @@ const eventSignatures = [
 
 if (!apiKey) {
   throw new Error("CIRCLE_API_KEY is required. Add it to the local root .env file only.");
+}
+if (!contractAddress) {
+  throw new Error("HANDSEL_CONTRACT_ADDRESS is required.");
+}
+if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+  throw new Error("HANDSEL_CONTRACT_ADDRESS must be an EVM address.");
+}
+if (blockchain !== "ARC" && blockchain !== "ARC-TESTNET") {
+  throw new Error("Set CIRCLE_BLOCKCHAIN explicitly to ARC or ARC-TESTNET.");
+}
+if (blockchain === "ARC") {
+  if (process.env.ARC_NETWORK !== "mainnet") throw new Error("ARC_NETWORK must be mainnet for ARC monitors.");
+  if (apiKey.startsWith("TEST_")) throw new Error("A testnet Circle API key cannot configure ARC mainnet monitors.");
+  if (process.env.CONFIRM_CIRCLE_MAINNET_MONITORS !== "HANDSEL_ARC_MAINNET_5042") {
+    throw new Error("Circle mainnet monitor creation is locked. Set CONFIRM_CIRCLE_MAINNET_MONITORS only after separate approval.");
+  }
+  if (!webhookUrl) throw new Error("HANDSEL_WEBHOOK_URL is required for mainnet monitors.");
+} else if (process.env.ARC_NETWORK === "mainnet") {
+  throw new Error("Refusing to create ARC-TESTNET monitors while ARC_NETWORK is mainnet.");
+}
+if (webhookUrl && new URL(webhookUrl).protocol !== "https:") {
+  throw new Error("HANDSEL_WEBHOOK_URL must use HTTPS.");
 }
 
 const existing = await circleRequest(
@@ -49,14 +70,13 @@ for (const eventSignature of eventSignatures) {
   console.log(`Created: ${name}${monitor?.id ? ` (${monitor.id})` : ""}`);
 }
 
-console.log(`Circle Contracts monitoring is ready for ${contractAddress} on ${blockchain}.`);
+console.log(`Circle Contracts event monitors configured for ${contractAddress} on ${blockchain}. Verify webhook delivery separately.`);
 
 if (webhookUrl) {
-  const url = new URL(webhookUrl);
-  if (url.protocol !== "https:") throw new Error("HANDSEL_WEBHOOK_URL must use HTTPS.");
-
   const existingSubscriptions = await circleRequest("/v2/notifications/subscriptions");
-  const subscriptions = existingSubscriptions.data?.subscriptions ?? [];
+  const subscriptions = Array.isArray(existingSubscriptions.data)
+    ? existingSubscriptions.data
+    : (existingSubscriptions.data?.subscriptions ?? []);
   const existingSubscription = subscriptions.find(
     (subscription) => subscription.endpoint === webhookUrl && subscription.enabled !== false,
   );

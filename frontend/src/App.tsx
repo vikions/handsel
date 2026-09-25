@@ -37,6 +37,8 @@ import {
 } from "wagmi";
 import { formatUnits, getAddress, isAddress, parseUnits, zeroAddress, type Address, type Hash } from "viem";
 import {
+  arcExplorerUrl,
+  arcNetworkName,
   circleWalletConfigured,
   handselAddress,
   configIssues,
@@ -113,7 +115,8 @@ const landingTaskTickerItems = [
   { title: "Indie game teaser site", amount: "5.75" },
 ] as const;
 
-const arcScanContractUrl = "https://testnet.arcscan.app/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867";
+const explorerContractUrl = `${arcExplorerUrl}/address/${handselAddress}`;
+const explorerTransactionUrl = (hash: string) => `${arcExplorerUrl}/tx/${hash}`;
 
 type Route =
   | { page: "landing" }
@@ -287,11 +290,15 @@ function LandingPage() {
           </a>
         </div>
         <div className="landing-trust" aria-label="Product verification">
-          <span><CheckCircle size={15} weight="fill" /> Live on Arc Testnet</span>
+          <span><CheckCircle size={15} weight="fill" /> Built on {arcNetworkName}</span>
           <span><CurrencyCircleDollar size={15} weight="duotone" /> USDC settlement</span>
-          <a href={arcScanContractUrl} rel="noreferrer" target="_blank">
-            <ShieldCheck size={15} weight="duotone" /> Verified contract
-          </a>
+          {contractsConfigured ? (
+            <a href={explorerContractUrl} rel="noreferrer" target="_blank">
+              <ShieldCheck size={15} weight="duotone" /> View contract
+            </a>
+          ) : (
+            <span><ShieldCheck size={15} weight="duotone" /> Mainnet deployment pending</span>
+          )}
           <a href="#/analytics"><Receipt size={15} weight="duotone" /> Public settlement history</a>
         </div>
       </main>
@@ -360,7 +367,7 @@ function LandingProofSurface() {
           <span>client approved</span>
         </div>
         <div className="surface-card criteria-card">
-          <span className="surface-label">Client</span>
+          <span className="surface-label">Illustrative agreement</span>
           <strong>Maya Chen hires Ilya Moroz</strong>
           <p>300 USDC held for a cafe booking page. Release requires live URL, source PR, and handoff notes.</p>
           <div className="surface-lines">
@@ -510,7 +517,7 @@ function ConnectButton() {
           </button>
           <div className={circleWalletConfigured ? "wallet-menu-note configured" : "wallet-menu-note"}>
             {circleWalletConfigured
-              ? "Circle passkey transactions use sponsored Arc Testnet network fees."
+              ? "Circle passkey sponsorship depends on production account settings."
               : "Circle passkey is implemented and activates when this deployment receives its Circle Client Key."}
           </div>
           {error ? <small className="wallet-menu-error">{error.message}</small> : null}
@@ -637,10 +644,12 @@ function loadAgreementAnalytics(
   })();
 
   agreementAnalyticsRequest = { count: agreementCount, promise };
-  void promise.finally(() => {
+  void promise.then(() => {
     if (agreementAnalyticsRequest?.promise === promise) {
       agreementAnalyticsRequest = undefined;
     }
+  }, () => {
+    if (agreementAnalyticsRequest?.promise === promise) agreementAnalyticsRequest = undefined;
   });
 
   return promise;
@@ -661,6 +670,7 @@ function AnalyticsPage() {
   const totalVolume = readBigInt(stats.data, 1);
   const completed = readBigInt(stats.data, 2);
   const disputed = readBigInt(stats.data, 3);
+  const statsIssue = contractStatsIssue(stats.data, stats.error);
   const agreementAnalytics = useAgreementAnalytics(totalAgreements);
 
   return (
@@ -672,16 +682,16 @@ function AnalyticsPage() {
       </section>
 
       <section className="overview-number-grid" aria-label="Protocol overview metrics">
-        <OverviewMetric label="Agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
-        <OverviewMetric label="USDC volume" value={formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
+        <OverviewMetric label="Agreements" value={statsIssue || !contractsConfigured ? "-" : totalAgreements.toString()} loading={stats.isLoading} />
+        <OverviewMetric label="USDC volume" value={statsIssue || !contractsConfigured ? "-" : formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
         <OverviewMetric
           label="Clients"
-          value={agreementAnalytics.clients.toString()}
+          value={agreementAnalytics.error || statsIssue || !contractsConfigured ? "-" : agreementAnalytics.clients.toString()}
           loading={agreementAnalytics.isLoading}
         />
         <OverviewMetric
           label="Freelancers"
-          value={agreementAnalytics.freelancers.toString()}
+          value={agreementAnalytics.error || statsIssue || !contractsConfigured ? "-" : agreementAnalytics.freelancers.toString()}
           loading={agreementAnalytics.isLoading}
         />
       </section>
@@ -689,15 +699,15 @@ function AnalyticsPage() {
       <section className="overview-ledger">
         <div className="overview-status">
           <span>Completed</span>
-          <strong>{completed.toString()}</strong>
+          <strong>{statsIssue || !contractsConfigured ? "-" : completed.toString()}</strong>
         </div>
         <div className="overview-status">
           <span>In progress</span>
-          <strong>{agreementAnalytics.inProgress.toString()}</strong>
+          <strong>{agreementAnalytics.error || statsIssue || !contractsConfigured ? "-" : agreementAnalytics.inProgress.toString()}</strong>
         </div>
         <div className="overview-status">
           <span>Disputed</span>
-          <strong>{disputed.toString()}</strong>
+          <strong>{statsIssue || !contractsConfigured ? "-" : disputed.toString()}</strong>
         </div>
       </section>
 
@@ -719,7 +729,7 @@ function AnalyticsPage() {
         </div>
       </section>
 
-      {stats.error ? <InlineError message={stats.error.message} /> : null}
+      {statsIssue ? <InlineError message={statsIssue} /> : null}
       {agreementAnalytics.error ? <InlineError message={agreementAnalytics.error} /> : null}
     </div>
   );
@@ -750,6 +760,7 @@ function Dashboard() {
   const totalVolume = readBigInt(stats.data, 1);
   const completed = readBigInt(stats.data, 2);
   const disputed = readBigInt(stats.data, 3);
+  const statsIssue = contractStatsIssue(stats.data, stats.error);
 
   return (
     <div className="dashboard-page">
@@ -757,7 +768,7 @@ function Dashboard() {
         <div>
           <span className="page-kicker live-kicker">
             <span className="live-dot" />
-            Live on Arc
+            {contractsConfigured ? arcNetworkName : "Deployment pending"}
           </span>
           <h1>Work agreements</h1>
           <p>One place for committed funds, submitted proof, and settlement.</p>
@@ -777,11 +788,11 @@ function Dashboard() {
       </section>
 
       <section className="dashboard-stats" aria-label="Protocol stats">
-        <Metric label="Agreements" value={totalAgreements.toString()} loading={stats.isLoading} />
-        <Metric label="USDC volume" value={formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
-        <Metric label="Completed" value={completed.toString()} loading={stats.isLoading} />
-        <Metric label="Disputed" value={disputed.toString()} loading={stats.isLoading} />
-        {stats.error ? <InlineError message={stats.error.message} /> : null}
+        <Metric label="Agreements" value={statsIssue || !contractsConfigured ? "-" : totalAgreements.toString()} loading={stats.isLoading} />
+        <Metric label="USDC volume" value={statsIssue || !contractsConfigured ? "-" : formatCompactUsdc(totalVolume)} loading={stats.isLoading} />
+        <Metric label="Completed" value={statsIssue || !contractsConfigured ? "-" : completed.toString()} loading={stats.isLoading} />
+        <Metric label="Disputed" value={statsIssue || !contractsConfigured ? "-" : disputed.toString()} loading={stats.isLoading} />
+        {statsIssue ? <InlineError message={statsIssue} /> : null}
       </section>
 
       <section className="activity-panel" id="user-agreements">
@@ -812,7 +823,7 @@ function CircleActivity({ address }: { address?: Address }) {
     <section className="circle-activity-panel">
       <div className="section-heading circle-activity-heading">
         <div>
-          <span className="circle-source"><span /> Circle Contracts</span>
+          <span className="circle-source"><span /> Indexed on Arc</span>
           <h2>Verified activity</h2>
         </div>
         {activity.data ? <small>{activity.data.events.length} indexed events</small> : null}
@@ -821,14 +832,14 @@ function CircleActivity({ address }: { address?: Address }) {
       {address && activity.isLoading ? <AgreementListSkeleton /> : null}
       {activity.error ? <InlineError message={activity.error.message} /> : null}
       {address && activity.data?.events.length === 0 ? (
-        <EmptyState title="No Circle events yet" body="New agreement actions will be indexed here automatically." />
+        <EmptyState title="No indexed events yet" body="New agreement actions will appear here after confirmation." />
       ) : null}
       {activity.data?.events.length ? (
         <div className="circle-event-list">
           {activity.data.events.slice(0, 12).map((event) => (
             <a
               className="circle-event-row"
-              href={`https://testnet.arcscan.app/tx/${event.tx_hash}`}
+              href={explorerTransactionUrl(event.tx_hash)}
               key={event.notification_id}
               rel="noreferrer"
               target="_blank"
@@ -1076,7 +1087,7 @@ function WorkPassportPage({ address }: { address: Address }) {
         <div>
           <span className="page-kicker">Handsel Work Passport</span>
           <h1>Verifiable work history.</h1>
-          <p>Objective agreement and settlement activity recorded by the Handsel contract on Arc Testnet.</p>
+          <p>Objective agreement and settlement activity recorded by the Handsel contract on {arcNetworkName}.</p>
         </div>
         <div className="passport-heading-actions">
           <button
@@ -1090,8 +1101,8 @@ function WorkPassportPage({ address }: { address: Address }) {
             <Copy size={17} weight="bold" />
             {copied ? "Link copied" : "Copy profile link"}
           </button>
-          <a className="primary-link" href={arcScanContractUrl} rel="noreferrer" target="_blank">
-            Verified contract
+          <a className="primary-link" href={explorerContractUrl} rel="noreferrer" target="_blank">
+            View contract
             <ArrowSquareOut size={17} weight="bold" />
           </a>
         </div>
@@ -1399,7 +1410,7 @@ function CreateAgreementPage() {
           <div className="agreement-preview">
             <div className="preview-heading">
               <span>Agreement preview</span>
-              <span className="status-pill">Created</span>
+              <span className="status-pill">Draft</span>
             </div>
             <strong className={title.trim() ? "preview-title" : "preview-title preview-placeholder"}>
               {title.trim() || "Untitled work agreement"}
@@ -1658,11 +1669,11 @@ function AgreementDetail({ agreement }: { agreement: AgreementRecord }) {
                 <p>{validation?.summary ?? "Run local review before final client approval."}</p>
               </div>
             </div>
-            <p className="review-note">AI-assisted review is a local recommendation. Client approval controls release.</p>
+            <p className="review-note">Local proof checklist only. It does not inspect linked files. Client approval controls release.</p>
             {isClient ? (
               <>
                 <ActionButton icon={<Brain size={18} weight="duotone" />} disabled={isPending} onClick={runReview}>
-                  Run AI-assisted review
+                  Run proof checklist
                 </ActionButton>
                 <ActionButton icon={<CheckCircle size={18} weight="duotone" />} disabled={isPending} onClick={() => callAgreement("Approving proof", "approveProof", [agreement.id])}>
                   Approve and release
@@ -1828,7 +1839,7 @@ function ReceiptPage({ agreementId }: { agreementId: bigint }) {
         <strong>{formatUsdc(agreement.amount)}</strong>
       </div>
       <p className="muted-copy">
-        Verifiable Handsel agreement history derived from the deployed contract on Arc Testnet.
+        Verifiable Handsel agreement history derived from the deployed contract on {arcNetworkName}.
       </p>
 
       <div className={isSettled ? "receipt-outcome settled" : "receipt-outcome"}>
@@ -1864,14 +1875,14 @@ function ReceiptPage({ agreementId }: { agreementId: bigint }) {
             <span className="eyebrow">Verification</span>
             <h2>Check the onchain record</h2>
           </div>
-          <a className="text-link" href={arcScanContractUrl} rel="noreferrer" target="_blank">
-            Verified contract <ArrowSquareOut size={16} weight="bold" />
+          <a className="text-link" href={explorerContractUrl} rel="noreferrer" target="_blank">
+            View contract <ArrowSquareOut size={16} weight="bold" />
           </a>
         </div>
         {receiptEvents.length ? (
           <div className="receipt-event-list">
             {receiptEvents.slice(0, 8).map((event) => (
-              <a href={`https://testnet.arcscan.app/tx/${event.tx_hash}`} key={event.notification_id} rel="noreferrer" target="_blank">
+              <a href={explorerTransactionUrl(event.tx_hash)} key={event.notification_id} rel="noreferrer" target="_blank">
                 <span>{formatEventName(event.event_name)}</span>
                 <small>{new Date(event.confirmed_at).toLocaleString()}</small>
                 <ArrowSquareOut size={15} weight="bold" />
@@ -1880,7 +1891,7 @@ function ReceiptPage({ agreementId }: { agreementId: bigint }) {
           </div>
         ) : (
           <p className="receipt-verification-note">
-            Agreement state is read directly from the verified contract. Indexed transaction links appear when the Circle activity service is configured.
+            Agreement state is read from the onchain contract. Transaction links appear after the activity indexer catches up.
           </p>
         )}
       </section>
@@ -2031,7 +2042,9 @@ function useTxRunner() {
       setTxState({ label });
       const hash = await writeContractAsync(request);
       setTxState({ label: "Waiting for confirmation", hash });
-      await publicClient?.waitForTransactionReceipt({ hash });
+      if (!publicClient) throw new Error("Arc RPC is not available to confirm this transaction.");
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error("Transaction reverted on Arc. Check the explorer for details.");
       await queryClient.invalidateQueries();
       setTxState({ label, hash, success: "Transaction confirmed" });
       return hash;
@@ -2083,6 +2096,14 @@ function normalizeAgreement(raw: unknown, id: bigint): AgreementRecord | null {
 function readBigInt(data: readonly unknown[] | undefined, index: number) {
   const row = data?.[index] as ReadRow | undefined;
   return typeof row?.result === "bigint" ? row.result : 0n;
+}
+
+function contractStatsIssue(data: readonly unknown[] | undefined, error: Error | null) {
+  if (error) return error.message;
+  if (data && (data.length !== 4 || data.some((row) => typeof (row as ReadRow).result !== "bigint"))) {
+    return "Unable to read agreement stats from this contract on Arc. Check its network and address.";
+  }
+  return null;
 }
 
 function parseUsdcAmount(value: string) {
