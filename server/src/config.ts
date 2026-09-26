@@ -37,7 +37,7 @@ export const env = {
   arcRpcUrl:
     process.env.ARC_RPC_URL ||
     (!isMainnet ? process.env.ARC_TESTNET_RPC_URL : undefined) ||
-    (isMainnet ? "https://rpc.drpc.mainnet.arc.io" : "https://rpc.drpc.testnet.arc.io"),
+    (isMainnet ? "https://rpc.mainnet.arc.io" : "https://rpc.drpc.testnet.arc.io"),
   handselAddress: address(process.env.HANDSEL_CONTRACT_ADDRESS, defaultContract),
   usdcAddress: address(process.env.USDC_ADDRESS, "0x3600000000000000000000000000000000000000"),
   deploymentBlock: BigInt(process.env.HANDSEL_DEPLOYMENT_BLOCK || "0"),

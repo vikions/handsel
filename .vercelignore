@@ -1,0 +1,9 @@
+.env*
+**/.env*
+**/node_modules
+**/dist
+.git
+.vercel
+.plans
+.playwright-mcp
+CONTRIBUTION_HUNT_REPORT.md

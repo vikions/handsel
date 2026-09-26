@@ -14,7 +14,7 @@ export const arcExplorerUrl = isArcMainnet
   : "https://explorer.testnet.arc.io";
 const expectedChainId = isArcMainnet ? 5_042 : 5_042_002;
 const officialUsdc = "0x3600000000000000000000000000000000000000";
-const defaultRpcUrl = isArcMainnet ? "https://rpc.drpc.mainnet.arc.io" : "https://rpc.drpc.testnet.arc.io";
+const defaultRpcUrl = isArcMainnet ? "https://rpc.mainnet.arc.io" : "https://rpc.drpc.testnet.arc.io";
 const defaultFallbackRpcUrl = isArcMainnet
   ? "https://rpc.quicknode.mainnet.arc.io"
   : "https://rpc.quicknode.testnet.arc.io";

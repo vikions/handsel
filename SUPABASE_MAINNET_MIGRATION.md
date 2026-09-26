@@ -1,6 +1,6 @@
 # Supabase mainnet activity migration
 
-**Not applied by this repository.** The contract remains authoritative; Supabase only indexes its events. Run this in a reviewed maintenance window, using a staging copy first. Back up the production database in Supabase Dashboard (or `pg_dump` with a securely held database URL) and verify a restore before touching production. Never commit a database URL or service-role key.
+**Production status (2026-09-26): applied and verified.** The restored Handsel Supabase project had no Handsel tables before migration. The operator ran `202608040001_circle_activity.sql` and then `202609180001_network_aware_activity.sql` in SQL Editor; service-role REST reads confirmed all three tables and the mainnet indexer cursor. Agreement and event tables remain empty until the first mainnet agreement. This runbook remains for staging or a new database. The contract remains authoritative; Supabase only indexes its events. Back up existing data and rehearse restoration before applying this to any populated database. Never commit a database URL or service-role key.
 
 ## Before applying
 

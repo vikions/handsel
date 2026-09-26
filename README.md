@@ -6,9 +6,9 @@ Handsel is a programmable agreement layer on Arc. A client defines measurable wo
 
 Live app: **https://www.archandsel.xyz/**
 
-> Mainnet status (2026-09-26): `HandselAgreement` is deployed and source-verified on Arc Mainnet. Production frontend/backend migration and a real agreement settlement have not been completed. The Arc Testnet deployment remains separate.
+> Mainnet status (2026-09-26): `HandselAgreement` is deployed and source-verified on Arc Mainnet. The public Vercel app and Railway API now target chain `5042`; Supabase migrations and RPC indexing are active. No real mainnet agreement settlement has been demonstrated yet. Circle Modular Wallet operation on mainnet is not enabled or verified. The Arc Testnet deployment remains separate.
 
-Mainnet contract address (chain `5042`): **[`0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867`](https://explorer.arc.io/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867?tab=contract)**. [Deployment transaction](https://explorer.arc.io/tx/0x3556fcbea8c41c0c75a2aeb9fde699177bdeb0afa70e2296f371061fb11dc369), block `22724141`. Blockscout reports an **exact source match** and exposes Read/Write Contract. The same numerical address exists on Arc Testnet because contract addresses derive from deployer and nonce; **chain ID distinguishes the two contracts**. Do not infer mainnet app availability from the live domain until its settings and a real settlement are verified.
+Mainnet contract address (chain `5042`): **[`0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867`](https://explorer.arc.io/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867?tab=contract)**. [Deployment transaction](https://explorer.arc.io/tx/0x3556fcbea8c41c0c75a2aeb9fde699177bdeb0afa70e2296f371061fb11dc369), block `22724141`. Blockscout reports an **exact source match** and exposes Read/Write Contract. The same numerical address exists on Arc Testnet because contract addresses derive from deployer and nonce; **chain ID distinguishes the two contracts**. The current public app was checked read-only against Mainnet, but agreement creation and settlement still require a live smoke test.
 
 Handsel is independent and is not affiliated with or endorsed by Circle. It is software, not a regulated escrow service or a substitute for legal agreements, compliance review, or professional advice.
 
@@ -23,7 +23,7 @@ Official Arc Mainnet configuration:
 | Chain | Arc Mainnet |
 | Chain ID | `5042` |
 | Official primary RPC | `https://rpc.mainnet.arc.io` |
-| Handsel RPC | `https://rpc.drpc.mainnet.arc.io` |
+| Handsel RPC | `https://rpc.mainnet.arc.io` |
 | Explorer | `https://explorer.arc.io` |
 | USDC ERC20 interface | `0x3600000000000000000000000000000000000000` |
 | USDC decimals | `6` |
@@ -56,11 +56,11 @@ The manual `releaseAgreement` path remains available when proof review happens o
 
 ### Modular Wallets
 
-Circle Modular Wallet passkey onboarding and sponsored UserOperation code paths are implemented for Arc Mainnet and Arc Testnet. Mainnet operation has **not** been demonstrated yet; it requires a mainnet Circle Client Key configured for the production domain and an end-to-end transaction test. The browser key is public but should be domain-restricted in Circle Console. External EVM wallets remain available. See [Circle integration status](CIRCLE_MAINNET_STATUS.md) for claims and gates.
+Circle Modular Wallet passkey onboarding and sponsored UserOperation code paths are implemented for Arc Mainnet and Arc Testnet. Mainnet operation has **not** been demonstrated yet; its Production Client Key is deliberately unset until a domain-restricted mainnet key and an end-to-end transaction test are available. The browser key is public but should be domain-restricted in Circle Console. External EVM wallets remain available. See [Circle integration status](CIRCLE_MAINNET_STATUS.md) for claims and gates.
 
 ### Circle Contracts
 
-Circle's current [Create Event Monitor API](https://developers.circle.com/api-reference/contracts/smart-contract-platform/create-event-monitor) lists both `ARC` and `ARC-TESTNET`. Handsel has a signature-verifying webhook route and a guarded monitor-setup script for either network, but **no Arc Mainnet monitor or delivered webhook has been verified yet**. The mainnet script requires an explicit Circle API key, contract address, HTTPS webhook URL, `ARC_NETWORK=mainnet`, and `CONFIRM_CIRCLE_MAINNET_MONITORS=HANDSEL_ARC_MAINNET_5042`. Running it makes remote Circle API changes and requires separate approval.
+Circle's current [Create Event Monitor API](https://developers.circle.com/api-reference/contracts/smart-contract-platform/create-event-monitor) lists both `ARC` and `ARC-TESTNET`. Handsel has a signature-verifying webhook route and a guarded monitor-setup script for either network, but **no Arc Mainnet monitor or delivered webhook has been verified yet**. The old test API key was removed from the Mainnet Railway environment. The mainnet script requires an explicit Circle mainnet API key, contract address, HTTPS webhook URL, `ARC_NETWORK=mainnet`, and `CONFIRM_CIRCLE_MAINNET_MONITORS=HANDSEL_ARC_MAINNET_5042`. Running it makes remote Circle API changes and requires separate approval.
 
 Mainnet activity is indexed directly from Arc RPC logs by the Railway service, independently of Circle monitors. The indexer stores network, chain ID, contract address, transaction hash, block, and log index, so testnet and mainnet records cannot collide. Signed Circle webhooks are an optional second ingestion path after the corresponding monitor and subscription are actually configured. Duplicate RPC/webhook logs share one deterministic event ID.
 
@@ -85,13 +85,13 @@ Frontend/Vercel:
 
 ```bash
 VITE_ARC_NETWORK=mainnet
-VITE_ARC_RPC_URL=https://rpc.drpc.mainnet.arc.io
+VITE_ARC_RPC_URL=https://rpc.mainnet.arc.io
 VITE_ARC_FALLBACK_RPC_URL=https://rpc.quicknode.mainnet.arc.io
 VITE_ARC_CHAIN_ID=5042
 VITE_USDC_ADDRESS=0x3600000000000000000000000000000000000000
 VITE_HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
-VITE_HANDSEL_API_URL=https://<railway-service>
-VITE_CIRCLE_CLIENT_KEY=<mainnet domain-restricted client key>
+VITE_HANDSEL_API_URL=https://handselserver-production.up.railway.app
+VITE_CIRCLE_CLIENT_KEY=
 VITE_CIRCLE_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
 ```
 
@@ -100,23 +100,23 @@ Railway/server:
 ```bash
 APP_ORIGIN=https://www.archandsel.xyz
 ARC_NETWORK=mainnet
-ARC_RPC_URL=https://rpc.drpc.mainnet.arc.io
+ARC_RPC_URL=https://rpc.mainnet.arc.io
 ARC_CHAIN_ID=5042
 USDC_ADDRESS=0x3600000000000000000000000000000000000000
 HANDSEL_CONTRACT_ADDRESS=0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867
 HANDSEL_DEPLOYMENT_BLOCK=22724141
 INDEXER_INTERVAL_MS=15000
 INDEXER_CONFIRMATIONS=2
-SUPABASE_URL=<project URL>
+SUPABASE_URL=https://jbxstevzehfrhlpjhvut.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<server only>
 ```
 
-`CIRCLE_API_KEY` is not required by the mainnet RPC indexer. Keep it server-only for supported Circle API operations. Never expose it through a `VITE_*` variable.
+Leave `VITE_CIRCLE_CLIENT_KEY` unset until a domain-restricted mainnet key and a successful UserOperation are confirmed. `CIRCLE_API_KEY` is not required by the mainnet RPC indexer. Keep it server-only for supported Circle API operations. Never expose it through a `VITE_*` variable.
 
 Hardhat, local only:
 
 ```bash
-ARC_MAINNET_RPC_URL=https://rpc.drpc.mainnet.arc.io
+ARC_MAINNET_RPC_URL=https://rpc.mainnet.arc.io
 ARC_MAINNET_CHAIN_ID=5042
 PRIVATE_KEY=
 USDC_ADDRESS=0x3600000000000000000000000000000000000000
@@ -132,7 +132,7 @@ Apply migrations in order:
 1. `supabase/migrations/202608040001_circle_activity.sql`
 2. `supabase/migrations/202609180001_network_aware_activity.sql`
 
-The second migration preserves existing testnet rows and changes identity to `chain_id + contract_address + agreement_id`. It also adds a cursor table for resumable RPC indexing. Read [the migration runbook](SUPABASE_MAINNET_MIGRATION.md) before applying it: the old Railway writer is incompatible with the new composite key, and a backup/staging rehearsal is required. This repository has **not** applied the production migration.
+The second migration preserves existing testnet rows and changes identity to `chain_id + contract_address + agreement_id`. It also adds a cursor table for resumable RPC indexing. Both migrations were applied to the restored production project on 2026-09-26. The project had no Handsel tables before migration; service-role reads confirmed the tables and mainnet cursor. Read [the migration runbook](SUPABASE_MAINNET_MIGRATION.md) before applying the files to another database.
 
 ## Local Verification
 
@@ -192,7 +192,7 @@ pnpm --filter @handsel/contracts verify:arc:mainnet -- <HANDSEL_CONTRACT_ADDRESS
 
 Hardhat uses Solidity `0.8.24` with optimizer enabled at 200 runs and one constructor argument (USDC). Manual verification used MIT license, Solidity Standard JSON Input, compiler `v0.8.24+commit.e11b9ed9`, and the matching Hardhat build-info `input`. The [mainnet explorer shows verified source and Read/Write](https://explorer.arc.io/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867?tab=contract).
 
-Follow [the production smoke test](MAINNET_SMOKE_TEST.md), [Circle status matrix](CIRCLE_MAINNET_STATUS.md), [grant evidence checklist](GRANT_EVIDENCE_CHECKLIST.md), and [grant update draft](CIRCLE_GRANT_UPDATE_DRAFT.md). Back up and apply the Supabase migration, update Railway and Vercel with the actual mainnet address/block, redeploy both services, then perform a separately approved minimal-value real transaction sequence. These steps have **not** been completed by the deployment transaction.
+Follow [the production smoke test](MAINNET_SMOKE_TEST.md), [Circle status matrix](CIRCLE_MAINNET_STATUS.md), [grant evidence checklist](GRANT_EVIDENCE_CHECKLIST.md), and [grant update draft](CIRCLE_GRANT_UPDATE_DRAFT.md). Supabase, Railway, and Vercel are configured for Mainnet and were checked read-only. Next, perform a separately approved minimal-value agreement sequence, verify explorer events and indexed records, and capture evidence. No real agreement transaction was sent during the infrastructure cutover.
 
 ## Existing Testnet Deployment
 
