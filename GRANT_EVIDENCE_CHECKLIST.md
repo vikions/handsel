@@ -21,5 +21,6 @@ Do not fill placeholders with testnet data when claiming Arc Mainnet. Capture li
 - [x] Local backend tests: 5 passing on 2026-09-26.
 - [x] Local typecheck and full build: passed on 2026-09-26 (Vite chunk-size warning only).
 - [x] Mainnet preflight with funded expected deployer: passed on 2026-09-26; balance was `1.003224` native USDC before deployment.
-- [ ] Circle mainnet passkey and sponsored UserOperation: pending live smoke test; do not present as proven.
+- [x] Circle Mainnet passkey registration and repeat sign-in: tested on the live app on 2026-10-04; no transaction was sent.
+- [ ] Circle sponsored UserOperation: pending live smoke test; do not present as proven.
 - [ ] Public architecture and current integration status: README and `CIRCLE_MAINNET_STATUS.md`.

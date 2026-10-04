@@ -6,7 +6,7 @@ Handsel is a programmable agreement layer on Arc. A client defines measurable wo
 
 Live app: **https://www.archandsel.xyz/**
 
-> Mainnet status (2026-09-26): `HandselAgreement` is deployed and source-verified on Arc Mainnet. The public Vercel app and Railway API now target chain `5042`; Supabase migrations and RPC indexing are active. No real mainnet agreement settlement has been demonstrated yet. Circle Modular Wallet operation on mainnet is not enabled or verified. The Arc Testnet deployment remains separate.
+> Mainnet status (2026-10-04): `HandselAgreement` is deployed and source-verified on Arc Mainnet. The public Vercel app and Railway API target chain `5042`; Supabase migrations and RPC indexing are active. Circle Modular Wallet passkey registration and repeat sign-in were tested on Mainnet. A sponsored UserOperation and a complete real-value agreement settlement have not yet been verified. The Arc Testnet deployment remains separate.
 
 Mainnet contract address (chain `5042`): **[`0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867`](https://explorer.arc.io/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867?tab=contract)**. [Deployment transaction](https://explorer.arc.io/tx/0x3556fcbea8c41c0c75a2aeb9fde699177bdeb0afa70e2296f371061fb11dc369), block `22724141`. Blockscout reports an **exact source match** and exposes Read/Write Contract. The same numerical address exists on Arc Testnet because contract addresses derive from deployer and nonce; **chain ID distinguishes the two contracts**. The current public app was checked read-only against Mainnet, but agreement creation and settlement still require a live smoke test.
 
@@ -56,7 +56,7 @@ The manual `releaseAgreement` path remains available when proof review happens o
 
 ### Modular Wallets
 
-Circle Modular Wallet passkey onboarding and sponsored UserOperation code paths are implemented for Arc Mainnet and Arc Testnet. Mainnet operation has **not** been demonstrated yet; its Production Client Key is deliberately unset until a domain-restricted mainnet key and an end-to-end transaction test are available. The browser key is public but should be domain-restricted in Circle Console. External EVM wallets remain available. See [Circle integration status](CIRCLE_MAINNET_STATUS.md) for claims and gates.
+Circle Modular Wallet passkey onboarding and sponsored UserOperation code paths are implemented for Arc Mainnet and Arc Testnet. The production Client Key is configured on Vercel, and passkey registration plus repeat sign-in were tested on the live Mainnet app. An older Circle Testnet passkey did not authenticate against the Mainnet configuration; creating a new Mainnet passkey worked. This does **not** verify a sponsored UserOperation or contract transaction. The browser key is public but should be domain-restricted in Circle Console. External EVM wallets remain available. See [Circle integration status](CIRCLE_MAINNET_STATUS.md) for claims and gates.
 
 ### Circle Contracts
 
@@ -111,7 +111,7 @@ SUPABASE_URL=https://jbxstevzehfrhlpjhvut.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<server only>
 ```
 
-Leave `VITE_CIRCLE_CLIENT_KEY` unset until a domain-restricted mainnet key and a successful UserOperation are confirmed. `CIRCLE_API_KEY` is not required by the mainnet RPC indexer. Keep it server-only for supported Circle API operations. Never expose it through a `VITE_*` variable.
+Set `VITE_CIRCLE_CLIENT_KEY` to a Mainnet Client Key authorized for the app domain; use a separate Testnet key for testnet development. No actual key belongs in the repository. `CIRCLE_API_KEY` is not required by the mainnet RPC indexer. Keep it server-only for supported Circle API operations. Never expose it through a `VITE_*` variable.
 
 Hardhat, local only:
 

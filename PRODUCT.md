@@ -29,7 +29,7 @@ Users connect an EVM wallet, create an agreement with a beneficiary and arbiter,
 - AI-assisted review is a deterministic local MVP recommendation; client approval controls release.
 - Public analytics are derived from contract reads and events.
 - The product is not a regulated escrow service or legal substitute.
-- Circle Modular Wallet/passkey support and sponsored user operations are network-aware. Circle Contracts event monitor APIs list Arc Mainnet, but a Handsel mainnet monitor/webhook has not been configured or verified; Arc RPC indexing is the default.
+- Circle Modular Wallet/passkey support and sponsored user operations are network-aware. Mainnet passkey registration and repeat sign-in were tested; sponsored operations remain unverified. Circle Contracts event monitor APIs list Arc Mainnet, but a Handsel mainnet monitor/webhook has not been configured or verified; Arc RPC indexing is the default.
 - Supabase persistence and the Railway activity API use Arc RPC indexing on mainnet and separate records by chain and contract.
 - Server-side OpenAI validation is not implemented; the current AI-assisted review is explicitly local and advisory.
 
@@ -44,7 +44,7 @@ Users connect an EVM wallet, create an agreement with a beneficiary and arbiter,
 ## Evidence on Hand
 
 - Live app at `https://www.archandsel.xyz/`.
-- Arc Testnet and Arc Mainnet contracts both exist at `0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867` on their respective chains. The mainnet deployment is recorded in `deployments/arc-mainnet.json`; production integration and an end-to-end agreement remain unverified.
+- Arc Testnet and Arc Mainnet contracts both exist at `0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867` on their respective chains. The mainnet deployment is recorded in `deployments/arc-mainnet.json`; passkey onboarding works, but a sponsored operation and an end-to-end agreement remain unverified.
 - Public analytics route at `https://www.archandsel.xyz/#/analytics`.
 - Public wallet Work Passport route at `https://www.archandsel.xyz/#/profile/<wallet>`.
 - Real contract lifecycle, tests, wallet interactions, proof submission, local review, and receipt UI exist in this repository.
