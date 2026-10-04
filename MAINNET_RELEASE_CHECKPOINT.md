@@ -1,6 +1,8 @@
-# HANDSEL - GRANT READY MAINNET RELEASE CHECKPOINT
+# Archived Handsel Mainnet deployment checkpoint (2026-09-26)
 
-**Updated 2026-09-26. Status: MAINNET CONTRACT AND APP CONFIGURED; REAL AGREEMENT SMOKE TEST PENDING.** HandselAgreement exists on chain `5042` at `0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867` (block `22724141`, tx `0x3556fcbea8c41c0c75a2aeb9fde699177bdeb0afa70e2296f371061fb11dc369`). [Blockscout reports an exact source match](https://explorer.arc.io/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867?tab=contract). The same numerical address exists on Arc Testnet; chain ID distinguishes the deployments. Supabase, Railway, and the public Vercel app now target Mainnet. No real agreement was created or settled during this cutover.
+> Historical deployment-day snapshot from 2026-09-26. The team subsequently completed a full Circle passkey agreement on Arc Mainnet; see `README.md` and `CIRCLE_MAINNET_STATUS.md` for current status. The pending items below describe the earlier cutover, not the current product.
+
+**Status on 2026-09-26: mainnet contract and app configured; agreement test had not yet run.** HandselAgreement exists on chain `5042` at `0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867` (block `22724141`, tx `0x3556fcbea8c41c0c75a2aeb9fde699177bdeb0afa70e2296f371061fb11dc369`). [Blockscout reports an exact source match](https://explorer.arc.io/address/0x51bfB2A08E7680786eD54a00eE4d915Bab6B3867?tab=contract). The same numerical address exists on Arc Testnet; chain ID distinguishes the deployments. Supabase, Railway, and the public Vercel app target Mainnet. No real agreement was created or settled during the September 26 cutover.
 
 ## A-C. Status, changes, verification
 
