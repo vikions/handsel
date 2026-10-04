@@ -38,6 +38,7 @@ import {
 import { formatUnits, getAddress, isAddress, parseUnits, zeroAddress, type Address, type Hash } from "viem";
 import {
   arcExplorerUrl,
+  isArcMainnet,
   arcNetworkName,
   circleWalletConfigured,
   handselAddress,
@@ -463,6 +464,7 @@ function ConnectButton() {
   const { connectors, connect, error, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const [open, setOpen] = useState(false);
+  const [circleLoginAttempt, setCircleLoginAttempt] = useState(false);
   const browserConnector = connectors.find((connector) => connector.id !== "circlePasskey");
   const circleConnector = connectors.find((connector) => connector.id === "circlePasskey");
 
@@ -489,7 +491,10 @@ function ConnectButton() {
       </button>
       {open ? (
         <div className="wallet-menu">
-          <button type="button" onClick={() => browserConnector && connect({ connector: browserConnector })}>
+          <button type="button" onClick={() => {
+            setCircleLoginAttempt(false);
+            if (browserConnector) connect({ connector: browserConnector });
+          }}>
             <Wallet size={18} />
             <span><strong>Browser wallet</strong><small>MetaMask or another installed wallet</small></span>
           </button>
@@ -497,17 +502,19 @@ function ConnectButton() {
             type="button"
             disabled={!circleWalletConfigured}
             onClick={() => {
+              setCircleLoginAttempt(true);
               selectCircleWalletMode("login");
               if (circleConnector) connect({ connector: circleConnector });
             }}
           >
             <Fingerprint size={18} />
-            <span><strong>Circle passkey</strong><small>Sign in with an existing device passkey</small></span>
+            <span><strong>Sign in with passkey</strong><small>Use your Circle wallet for this network</small></span>
           </button>
           <button
             type="button"
             disabled={!circleWalletConfigured}
             onClick={() => {
+              setCircleLoginAttempt(false);
               selectCircleWalletMode("register");
               if (circleConnector) connect({ connector: circleConnector });
             }}
@@ -517,10 +524,18 @@ function ConnectButton() {
           </button>
           <div className={circleWalletConfigured ? "wallet-menu-note configured" : "wallet-menu-note"}>
             {circleWalletConfigured
-              ? "Circle passkey sponsorship depends on production account settings."
+              ? isArcMainnet
+                ? "Testnet passkeys do not sign in here. Create a new wallet for Arc Mainnet."
+                : "Circle passkey sponsorship depends on account settings."
               : "Circle passkey is implemented and activates when this deployment receives its Circle Client Key."}
           </div>
-          {error ? <small className="wallet-menu-error">{error.message}</small> : null}
+          {error && !isPending ? (
+            <small className="wallet-menu-error" role="alert">
+              {isArcMainnet && circleLoginAttempt && /Webauthn protocol/i.test(error.message)
+                ? "Circle could not verify that passkey for Arc Mainnet. If it was created on testnet, choose Create passkey wallet and use the new passkey to sign in."
+                : error.message}
+            </small>
+          ) : null}
         </div>
       ) : null}
     </div>
